@@ -212,7 +212,7 @@ select option{background:#1e2333}
 <body>
 
 <div class="header">
-  <div class="logo">DFFL <span>Draft Board</span> <span style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:400" id="versionLabel">v2.5</span></div>
+  <div class="logo">DFFL <span>Draft Board</span> <span style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:400" id="versionLabel">v2.6</span></div>
   <div class="header-right">
     <div class="pick-indicator" id="clockIndicator" onclick="handleClockClick()" style="cursor:pointer">
       <div class="pick-dot" id="clockDot"></div>
@@ -478,7 +478,7 @@ select option{background:#1e2333}
 <div class="status-toast" id="toast"></div>
 
 <script>
-const APP_VERSION = '2.5';
+const APP_VERSION = '2.6';
 const TEAMS={
   1:{name:'Kith',  emoji:'🟩',hex:'#7ecfb8',rgb:'126,207,184',cssVar:'var(--t1)'},
   2:{name:'Nate',  emoji:'🟧',hex:'#f5a623',rgb:'245,166,35', cssVar:'var(--t2)'},
@@ -799,17 +799,18 @@ function getOwnerDisplay(ownerVal, pickIdx) {
 function renderPickOrderSidebar(){
   const list=document.getElementById('pickOrderList');
   if(!state.pickOwners){list.innerHTML='<div class="empty-log">Set draft order first.</div>';return;}
-  const done=curIdx();
-  const start=Math.max(0,done-1),end=Math.min(TOTAL,done+22);
+  const nextIdx=curIdx();
+  const start=Math.max(0,nextIdx-1),end=Math.min(TOTAL,nextIdx+22);
   let html='';
   for(let i=start;i<end;i++){
     const owner=state.pickOwners[i];
     const d=getOwnerDisplay(owner, i);
-    const isDone=i<done||owner===0,onClock=i===done&&owner!==0;
+    const isDone=pickIsUsed(i);
+    const onClock=i===nextIdx&&owner!==0;
     const le=state.draftLog.find(e=>e.overallIdx===i);
-    // For external picks find the pool player selected
+    const extUsed=state.extUsedPicks&&state.extUsedPicks[i];
     const extTr=owner===0?state.tradeLog.find(tr=>tr.type==='external'&&(tr.pickGivenAll||[tr.pickGiven]).includes(i)):null;
-    const extPlayer=extTr&&extTr.poolPlayer?extTr.poolPlayer:null;
+    const extPlayer=extUsed?extUsed.playerName:(extTr&&extTr.poolPlayer?extTr.poolPlayer:null);
     const traded=state.tradeLog.some(tr=>{
       if(tr.type==='external'){return(tr.pickGivenAll||[tr.pickGiven]).includes(i);}
       return [...(tr.aGave||[]),...(tr.bGave||[])].includes(i);
@@ -820,7 +821,7 @@ function renderPickOrderSidebar(){
       ${traded&&owner!==0?'<span class="pick-trade-tag">T</span>':''}
       ${onClock?'<span style="font-size:9px;color:var(--accent1);margin-left:auto">⏱ ON CLOCK</span>':''}
       ${le?`<span class="pick-result">${le.name}</span>`:''}
-      ${!le&&extPlayer?`<span class="pick-result">${extPlayer}</span>`:''}
+      ${!le&&extPlayer&&extPlayer!=='TBD'?`<span class="pick-result">${extPlayer}</span>`:''}
     </div>`;
   }
   list.innerHTML=html;
@@ -937,10 +938,11 @@ function renderPicksPage(){
         const idx=base+p;
         const owner=state.pickOwners[idx];
         const d=getOwnerDisplay(owner,idx);
-        const done=pickIsUsed(idx)||owner===0;
+        const done=pickIsUsed(idx);
         const le=state.draftLog.find(e=>e.overallIdx===idx);
+        const extUsed=state.extUsedPicks&&state.extUsedPicks[idx];
         const extTr=owner===0?state.tradeLog.find(tr=>tr.type==='external'&&(tr.pickGivenAll||[tr.pickGiven]).includes(idx)):null;
-        const extPlayer=extTr&&extTr.poolPlayer?extTr.poolPlayer:null;
+        const extPlayer=extUsed?extUsed.playerName:(extTr&&extTr.poolPlayer?extTr.poolPlayer:null);
         const traded=state.tradeLog.some(tr=>{
           if(tr.type==='external'){return(tr.pickGivenAll||[tr.pickGiven]).includes(idx);}
           return [...(tr.aGave||[]),...(tr.bGave||[])].includes(idx);
@@ -951,7 +953,7 @@ function renderPicksPage(){
           ${traded&&owner!==0?'<span class="pick-trade-tag">T</span>':''}
           ${owner===0?'<span class="pick-trade-tag" style="background:rgba(62,207,110,.15);color:#3ecf6e">EXT</span>':''}
           ${le?`<span style="font-size:10px;color:var(--muted);margin-left:3px;font-style:italic">${le.name}</span>`:''}
-          ${!le&&extPlayer?`<span style="font-size:10px;color:var(--muted);margin-left:3px;font-style:italic">${extPlayer}</span>`:''}
+          ${!le&&extPlayer&&extPlayer!=='TBD'?`<span style="font-size:10px;color:var(--muted);margin-left:3px;font-style:italic">${extPlayer}</span>`:''}
         </div>`;
       }
       html+='</div></div>';
