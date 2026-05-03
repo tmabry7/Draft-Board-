@@ -212,7 +212,7 @@ select option{background:#1e2333}
 <body>
 
 <div class="header">
-  <div class="logo">DFFL <span>Draft Board</span> <span style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:400" id="versionLabel">v2.7</span></div>
+  <div class="logo">DFFL <span>Draft Board</span> <span style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:400" id="versionLabel">v2.8</span></div>
   <div class="header-right">
     <div class="pick-indicator" id="clockIndicator" onclick="handleClockClick()" style="cursor:pointer">
       <div class="pick-dot" id="clockDot"></div>
@@ -478,14 +478,14 @@ select option{background:#1e2333}
 <div class="status-toast" id="toast"></div>
 
 <script>
-const APP_VERSION = '2.7';
+const APP_VERSION = '2.8';
 const TEAMS={
   1:{name:'Kith',  emoji:'🟩',hex:'#7ecfb8',rgb:'126,207,184',cssVar:'var(--t1)'},
   2:{name:'Nate',  emoji:'🟧',hex:'#f5a623',rgb:'245,166,35', cssVar:'var(--t2)'},
   3:{name:'Victor',emoji:'🟪',hex:'#c47af5',rgb:'196,122,245',cssVar:'var(--t3)'},
 };
 const TIER_LABELS={1:'⭐ Tier 1',2:'Tier 2',3:'Tier 3',4:'Tier 4'};
-const PPT=40,NT=3,TOTAL=PPT*NT; // picks per team, num teams, total picks
+const PPT=52,NT=3,TOTAL=PPT*NT; // picks per team, num teams, total picks
 const DL=['DE','DT'],LB=['LB'],DB=['CB','S'],DEF_ALL=['DE','DT','LB','CB','S'],OFF_FLEX=['RB','WR','TE'];
 const isDEF=p=>DEF_ALL.includes(p),isDL=p=>DL.includes(p),isLB=p=>LB.includes(p),isDB=p=>DB.includes(p),isFlex=p=>OFF_FLEX.includes(p);
 
