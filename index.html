@@ -753,8 +753,13 @@ function renderPickOrderSidebar(){
     const isDone=i<done,onClock=i===done;
     const le=isDone?state.draftLog.find(e=>e.overallIdx===i):null;
     const traded=state.tradeLog.some(tr=>{
-      if(tr.type==='external') return tr.pickGiven===i;
-      return [...(tr.aGave||[]),...(tr.bGave||[])].includes(i);
+      if(tr.type==='external'){
+        const raw=tr.pickGivenAll||(tr.pickGiven!=null?[tr.pickGiven]:[]);
+        return (Array.isArray(raw)?raw:Object.values(raw)).includes(i);
+      }
+      const ag=Array.isArray(tr.aGave)?tr.aGave:Object.values(tr.aGave||{});
+      const bg=Array.isArray(tr.bGave)?tr.bGave:Object.values(tr.bGave||{});
+      return [...ag,...bg].includes(i);
     });
     html+=`<div class="pick-slot${isDone?' done':''}${onClock?' on-clock':''}">
       <span class="pick-round" style="color:${t.hex}">${getPickLabel(i)}</span>
@@ -847,8 +852,13 @@ function renderPicksPage(){
         const done=pickIsUsed(idx);
         const le=state.draftLog.find(e=>e.overallIdx===idx);
         const traded=state.tradeLog.some(tr=>{
-          if(tr.type==='external') return tr.pickGiven===idx;
-          return [...(tr.aGave||[]),...(tr.bGave||[])].includes(idx);
+          if(tr.type==='external'){
+            const raw=tr.pickGivenAll||(tr.pickGiven!=null?[tr.pickGiven]:[]);
+            return (Array.isArray(raw)?raw:Object.values(raw)).includes(idx);
+          }
+          const ag=Array.isArray(tr.aGave)?tr.aGave:Object.values(tr.aGave||{});
+          const bg=Array.isArray(tr.bGave)?tr.bGave:Object.values(tr.bGave||{});
+          return [...ag,...bg].includes(idx);
         });
         html+=`<div class="order-pick" style="opacity:${done?.38:1}">
           <span class="order-pick-num" style="color:${t.hex}">${getPickLabel(idx)}</span>
@@ -864,9 +874,13 @@ function renderPicksPage(){
   const tl=document.getElementById('tradeLogList');
   if(!state.tradeLog.length){tl.innerHTML='<div class="empty-trades">No trades recorded yet.</div>';return;}
   tl.innerHTML='<div class="trade-log-list">'+state.tradeLog.map((tr,i)=>{
+    const ag=Array.isArray(tr.aGave)?tr.aGave:Object.values(tr.aGave||{});
+    const bg=Array.isArray(tr.bGave)?tr.bGave:Object.values(tr.bGave||{});
+    const rawPG=tr.pickGivenAll||(tr.pickGiven!=null?[tr.pickGiven]:[]);
+    const pgArr=Array.isArray(rawPG)?rawPG:Object.values(rawPG);
     const pickTags = tr.type==='external'
-      ? (tr.pickGiven!==undefined&&tr.pickGiven!==null ? [tr.pickGiven] : []).map(idx=>`<span class="pick-trade-tag" style="background:rgba(62,207,110,.15);color:#3ecf6e">${getPickLabel(idx)}</span>`).join('')
-      : [...(tr.aGave||[]),...(tr.bGave||[])].map(idx=>`<span class="pick-trade-tag" style="background:rgba(245,200,66,.15);color:var(--accent1)">${getPickLabel(idx)}</span>`).join('');
+      ? pgArr.map(idx=>`<span class="pick-trade-tag" style="background:rgba(62,207,110,.15);color:#3ecf6e">${getPickLabel(idx)}</span>`).join('')
+      : [...ag,...bg].map(idx=>`<span class="pick-trade-tag" style="background:rgba(245,200,66,.15);color:var(--accent1)">${getPickLabel(idx)}</span>`).join('');
     const badge = tr.type==='external'
       ? '<span style="font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(62,207,110,.15);color:#3ecf6e;font-family:\'Barlow Condensed\',sans-serif;font-weight:700;margin-left:6px">EXT</span>'
       : '<span style="font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(79,142,247,.15);color:var(--accent2);font-family:\'Barlow Condensed\',sans-serif;font-weight:700;margin-left:6px">INTERNAL</span>';
@@ -922,11 +936,14 @@ function confirmOrder(){
   // Re-apply all recorded trades to restored pickOwners
   state.tradeLog.forEach(tr=>{
     if(tr.type==='external'){
-      const idxs=tr.pickGivenAll||(tr.pickGiven!=null?[tr.pickGiven]:[]);
+      const raw=tr.pickGivenAll||(tr.pickGiven!=null?[tr.pickGiven]:[]);
+      const idxs=Array.isArray(raw)?raw:Object.values(raw);
       idxs.forEach(i=>{if(i<TOTAL)state.pickOwners[i]=0;});
     } else {
-      (tr.aGave||[]).forEach(i=>{if(i<TOTAL)state.pickOwners[i]=tr.toB;});
-      (tr.bGave||[]).forEach(i=>{if(i<TOTAL)state.pickOwners[i]=tr.toA;});
+      const ag=Array.isArray(tr.aGave)?tr.aGave:Object.values(tr.aGave||{});
+      const bg=Array.isArray(tr.bGave)?tr.bGave:Object.values(tr.bGave||{});
+      ag.forEach(i=>{if(i<TOTAL)state.pickOwners[i]=tr.toB;});
+      bg.forEach(i=>{if(i<TOTAL)state.pickOwners[i]=tr.toA;});
     }
   });
   closeModal('settingsModal');
@@ -1273,12 +1290,17 @@ draftRef.on('value', snapshot => {
     return;
   }
 
-  // Restore state from Firebase
-  state.draftOrder  = remote.draftOrder  || null;
-  state.pickOwners  = remote.pickOwners  || null;
-  state.draftLog    = remote.draftLog    || [];
-  state.tradeLog    = remote.tradeLog    || [];
-  state.receivedAssets = remote.receivedAssets || {};
+  // Restore state from Firebase — force arrays since Firebase can return objects with numeric keys
+  state.draftOrder  = remote.draftOrder ? Object.values(remote.draftOrder) : null;
+  state.pickOwners  = remote.pickOwners ? Object.values(remote.pickOwners).map(Number) : null;
+  state.draftLog    = remote.draftLog   ? Object.values(remote.draftLog)   : [];
+  state.tradeLog    = remote.tradeLog   ? Object.values(remote.tradeLog)   : [];
+  // receivedAssets is keyed by team id — each value may be a Firebase object not array
+  const rawAssets = remote.receivedAssets || {};
+  state.receivedAssets = {};
+  Object.keys(rawAssets).forEach(tid => {
+    state.receivedAssets[tid] = rawAssets[tid] ? Object.values(rawAssets[tid]) : [];
+  });
 
   // Rebuild player drafted status from draftLog
   state.players.forEach(p => { p.drafted=false; p.draftedBy=null; p.pickNum=null; p.draftedByName=null; });
@@ -1288,7 +1310,8 @@ draftRef.on('value', snapshot => {
   });
   // Rebuild external drafted players and pick ownership from tradeLog
   state.tradeLog.filter(tr=>tr.type==='external').forEach(tr=>{
-    const pickIdxs = tr.pickGivenAll || (tr.pickGiven!==undefined&&tr.pickGiven!==null ? [tr.pickGiven] : []);
+    const raw = tr.pickGivenAll || (tr.pickGiven!=null?[tr.pickGiven]:[]);
+    const pickIdxs = Array.isArray(raw) ? raw : Object.values(raw);
     pickIdxs.forEach(idx=>{ if(state.pickOwners&&idx<state.pickOwners.length) state.pickOwners[idx]=0; });
     if(tr.poolPlayer){
       const p = state.players.find(pl=>pl.name===tr.poolPlayer);
