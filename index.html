@@ -212,7 +212,7 @@ select option{background:#1e2333}
 <body>
 
 <div class="header">
-  <div class="logo">DFFL <span>Draft Board</span> <span style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:400">v2.2</span></div>
+  <div class="logo">DFFL <span>Draft Board</span> <span style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:400">v2.3</span></div>
   <div class="header-right">
     <div class="pick-indicator">
       <div class="pick-dot" id="clockDot"></div>
@@ -686,7 +686,9 @@ function updateClock(){
   if(!state.draftOrder){
     dot.style.background='var(--muted)';lbl.textContent='SET ORDER';lbl.style.color='var(--muted)';ctr.textContent='';return;
   }
-  const idx=curIdx();
+  // Find the next pick that belongs to one of the 3 owners (not external=0)
+  let idx=curIdx();
+  while(idx<TOTAL && state.pickOwners[idx]===0) idx++;
   if(idx>=TOTAL){
     dot.style.background='var(--green)';lbl.textContent='DRAFT COMPLETE';lbl.style.color='var(--green)';ctr.textContent='';return;
   }
@@ -743,6 +745,17 @@ function renderDraftLog(){
 }
 
 // ── PICK ORDER SIDEBAR ────────────────────────────────────
+function getOwnerDisplay(ownerVal, pickIdx) {
+  // ownerVal 0 = external team used this pick
+  if (ownerVal === 0) {
+    const tr = state.tradeLog.find(tr => tr.type==='external' && (tr.pickGivenAll||[tr.pickGiven]).includes(pickIdx));
+    const extName = tr ? tr.extTeam : 'Ext. Team';
+    return {hex:'#aaaaaa', emoji:'🌐', name:extName, isExt:true};
+  }
+  const t = TEAMS[ownerVal];
+  return t ? {...t, isExt:false} : {hex:'#aaaaaa', emoji:'?', name:'Unknown', isExt:false};
+}
+
 function renderPickOrderSidebar(){
   const list=document.getElementById('pickOrderList');
   if(!state.pickOwners){list.innerHTML='<div class="empty-log">Set draft order first.</div>';return;}
@@ -750,24 +763,24 @@ function renderPickOrderSidebar(){
   const start=Math.max(0,done-1),end=Math.min(TOTAL,done+22);
   let html='';
   for(let i=start;i<end;i++){
-    const t=TEAMS[state.pickOwners[i]];
-    const isDone=i<done,onClock=i===done;
-    const le=isDone?state.draftLog.find(e=>e.overallIdx===i):null;
+    const owner=state.pickOwners[i];
+    const d=getOwnerDisplay(owner, i);
+    const isDone=i<done||owner===0,onClock=i===done&&owner!==0;
+    const le=state.draftLog.find(e=>e.overallIdx===i);
+    // For external picks find the pool player selected
+    const extTr=owner===0?state.tradeLog.find(tr=>tr.type==='external'&&(tr.pickGivenAll||[tr.pickGiven]).includes(i)):null;
+    const extPlayer=extTr&&extTr.poolPlayer?extTr.poolPlayer:null;
     const traded=state.tradeLog.some(tr=>{
-      if(tr.type==='external'){
-        const raw=tr.pickGivenAll||(tr.pickGiven!=null?[tr.pickGiven]:[]);
-        return (Array.isArray(raw)?raw:Object.values(raw)).includes(i);
-      }
-      const ag=Array.isArray(tr.aGave)?tr.aGave:Object.values(tr.aGave||{});
-      const bg=Array.isArray(tr.bGave)?tr.bGave:Object.values(tr.bGave||{});
-      return [...ag,...bg].includes(i);
+      if(tr.type==='external'){return(tr.pickGivenAll||[tr.pickGiven]).includes(i);}
+      return [...(tr.aGave||[]),...(tr.bGave||[])].includes(i);
     });
     html+=`<div class="pick-slot${isDone?' done':''}${onClock?' on-clock':''}">
-      <span class="pick-round" style="color:${t.hex}">${getPickLabel(i)}</span>
-      <span style="color:${t.hex};font-size:12px;font-weight:600">${t.emoji} ${t.name}</span>
-      ${traded?'<span class="pick-trade-tag">T</span>':''}
+      <span class="pick-round" style="color:${d.hex}">${getPickLabel(i)}</span>
+      <span style="color:${d.hex};font-size:12px;font-weight:600">${d.emoji} ${d.name}</span>
+      ${traded&&owner!==0?'<span class="pick-trade-tag">T</span>':''}
       ${onClock?'<span style="font-size:9px;color:var(--accent1);margin-left:auto">⏱ ON CLOCK</span>':''}
       ${le?`<span class="pick-result">${le.name}</span>`:''}
+      ${!le&&extPlayer?`<span class="pick-result">${extPlayer}</span>`:''}
     </div>`;
   }
   list.innerHTML=html;
@@ -881,23 +894,24 @@ function renderPicksPage(){
       const base=r*NT;
       html+=`<div class="order-round"><div class="order-round-label">Round ${r+1}${r%2===1?' ↩':''}</div><div class="order-picks">`;
       for(let p=0;p<NT;p++){
-        const idx=base+p,t=TEAMS[state.pickOwners[idx]];
-        const done=pickIsUsed(idx);
+        const idx=base+p;
+        const owner=state.pickOwners[idx];
+        const d=getOwnerDisplay(owner,idx);
+        const done=pickIsUsed(idx)||owner===0;
         const le=state.draftLog.find(e=>e.overallIdx===idx);
+        const extTr=owner===0?state.tradeLog.find(tr=>tr.type==='external'&&(tr.pickGivenAll||[tr.pickGiven]).includes(idx)):null;
+        const extPlayer=extTr&&extTr.poolPlayer?extTr.poolPlayer:null;
         const traded=state.tradeLog.some(tr=>{
-          if(tr.type==='external'){
-            const raw=tr.pickGivenAll||(tr.pickGiven!=null?[tr.pickGiven]:[]);
-            return (Array.isArray(raw)?raw:Object.values(raw)).includes(idx);
-          }
-          const ag=Array.isArray(tr.aGave)?tr.aGave:Object.values(tr.aGave||{});
-          const bg=Array.isArray(tr.bGave)?tr.bGave:Object.values(tr.bGave||{});
-          return [...ag,...bg].includes(idx);
+          if(tr.type==='external'){return(tr.pickGivenAll||[tr.pickGiven]).includes(idx);}
+          return [...(tr.aGave||[]),...(tr.bGave||[])].includes(idx);
         });
-        html+=`<div class="order-pick" style="opacity:${done?.38:1}">
-          <span class="order-pick-num" style="color:${t.hex}">${getPickLabel(idx)}</span>
-          <span class="snake-pip" style="background:rgba(${t.rgb},.15);color:${t.hex}">${t.emoji} ${t.name}</span>
-          ${traded?'<span class="pick-trade-tag">T</span>':''}
+        html+=`<div class="order-pick" style="opacity:${done?.5:1}">
+          <span class="order-pick-num" style="color:${d.hex}">${getPickLabel(idx)}</span>
+          <span class="snake-pip" style="background:rgba(${d.hex.replace('#','').match(/.{2}/g).map(x=>parseInt(x,16)).join(',')},.15);color:${d.hex}">${d.emoji} ${d.name}</span>
+          ${traded&&owner!==0?'<span class="pick-trade-tag">T</span>':''}
+          ${owner===0?'<span class="pick-trade-tag" style="background:rgba(62,207,110,.15);color:#3ecf6e">EXT</span>':''}
           ${le?`<span style="font-size:10px;color:var(--muted);margin-left:3px;font-style:italic">${le.name}</span>`:''}
+          ${!le&&extPlayer?`<span style="font-size:10px;color:var(--muted);margin-left:3px;font-style:italic">${extPlayer}</span>`:''}
         </div>`;
       }
       html+='</div></div>';
