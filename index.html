@@ -1283,6 +1283,7 @@ function pushState() {
 let initialLoad = true;
 draftRef.on('value', snapshot => {
   const remote = snapshot.val();
+  console.log('Firebase snapshot:', JSON.stringify(remote, null, 2));
   if (!remote) {
     // Nothing in DB yet — fresh draft
     setSyncStatus('live');
@@ -1320,6 +1321,13 @@ draftRef.on('value', snapshot => {
   });
 
   setSyncStatus('live');
+  console.log('State after restore:', {
+    draftOrder: state.draftOrder,
+    pickOwnersIsArray: Array.isArray(state.pickOwners),
+    pickOwnersLength: state.pickOwners ? state.pickOwners.length : 0,
+    draftLogLength: state.draftLog.length,
+    tradeLogLength: state.tradeLog.length,
+  });
   renderAll();
   initialLoad = false;
 }, error => {
