@@ -212,7 +212,7 @@ select option{background:#1e2333}
 <body>
 
 <div class="header">
-  <div class="logo">DFFL <span>Draft Board</span> <span style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:400" id="versionLabel">v2.6</span></div>
+  <div class="logo">DFFL <span>Draft Board</span> <span style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:400" id="versionLabel">v2.7</span></div>
   <div class="header-right">
     <div class="pick-indicator" id="clockIndicator" onclick="handleClockClick()" style="cursor:pointer">
       <div class="pick-dot" id="clockDot"></div>
@@ -478,7 +478,7 @@ select option{background:#1e2333}
 <div class="status-toast" id="toast"></div>
 
 <script>
-const APP_VERSION = '2.6';
+const APP_VERSION = '2.7';
 const TEAMS={
   1:{name:'Kith',  emoji:'🟩',hex:'#7ecfb8',rgb:'126,207,184',cssVar:'var(--t1)'},
   2:{name:'Nate',  emoji:'🟧',hex:'#f5a623',rgb:'245,166,35', cssVar:'var(--t2)'},
@@ -1356,11 +1356,27 @@ function confirmExtTrade() {
 }
 
 // ── UNDO ──────────────────────────────────────────────────
+function rebuildPlayerFlags(){
+  // Clear all flags first
+  state.players.forEach(p=>{ p.drafted=false; p.draftedBy=null; p.pickNum=null; p.draftedByName=null; });
+  // Rebuild from draftLog
+  state.draftLog.forEach(e=>{
+    const p=state.players[e.id];
+    if(p){ p.drafted=true; p.draftedBy=e.team; p.pickNum=e.pickNum; }
+  });
+  // Rebuild from extUsedPicks
+  Object.entries(state.extUsedPicks||{}).forEach(([idx,entry])=>{
+    if(entry.playerName&&entry.playerName!=='TBD'){
+      const p=state.players.find(pl=>pl.name===entry.playerName);
+      if(p){ p.drafted=true; p.draftedBy='ext'; p.draftedByName=entry.extTeam; p.pickNum=getPickLabel(Number(idx)); }
+    }
+  });
+}
+
 function undoPick(){
   if(!state.draftLog.length){showToast('⚠️ No picks to undo');return;}
   const last=state.draftLog.pop();
-  const p=state.players[last.id];
-  p.drafted=false;p.draftedBy=null;p.pickNum=null;
+  rebuildPlayerFlags();
   pushState();
   showToast(`↩ Undid pick: ${last.name}`);
 }
@@ -1375,15 +1391,14 @@ function undoTrade(){
     pickIdxs.forEach(idx=>{
       if(state.pickOwners&&idx<state.pickOwners.length) state.pickOwners[idx]=last.toOwner;
     });
+    // Clear extUsedPicks entries for these pick indexes
+    if(state.extUsedPicks){
+      pickIdxs.forEach(idx=>{ delete state.extUsedPicks[idx]; });
+    }
     // Remove received assets for this owner that came from this trade
     if(state.receivedAssets&&state.receivedAssets[last.toOwner]){
       const assetNames=new Set((last.assetsIn||[]).map(a=>a.name));
       state.receivedAssets[last.toOwner]=state.receivedAssets[last.toOwner].filter(a=>!assetNames.has(a.name));
-    }
-    // Unmark pool player if one was selected
-    if(last.poolPlayer){
-      const p=state.players.find(pl=>pl.name===last.poolPlayer);
-      if(p){p.drafted=false;p.draftedBy=null;p.pickNum=null;p.draftedByName=null;}
     }
   } else {
     // Internal trade — swap picks back
@@ -1393,6 +1408,7 @@ function undoTrade(){
     bg.forEach(i=>{if(state.pickOwners&&i<state.pickOwners.length)state.pickOwners[i]=last.toB;});
   }
 
+  rebuildPlayerFlags();
   pushState();
   showToast(`↩ Undid trade #${state.tradeLog.length+1}`);
 }
