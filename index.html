@@ -6,6 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DFFL Dynasty Replacement Draft</title>
 <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
   :root {
     --bg:#0d0f14;--surface:#161a24;--surface2:#1e2333;--border:#2a3050;
@@ -180,6 +182,10 @@
 .status-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:var(–surface2);border:1px solid var(–accent1);color:var(–text);padding:9px 20px;border-radius:8px;font-weight:600;font-size:13px;transition:transform .3s ease;z-index:999;white-space:nowrap;pointer-events:none}
 .status-toast.show{transform:translateX(-50%) translateY(0)}
 select option{background:#1e2333}
+.sync-dot{width:8px;height:8px;border-radius:50%;background:var(–muted);flex-shrink:0;transition:background .4s}
+.sync-dot.live{background:var(–green)}.sync-dot.error{background:var(–accent3)}
+.sync-indicator{display:flex;align-items:center;gap:5px;background:var(–surface2);border:1px solid var(–border);border-radius:5px;padding:5px 9px}
+.sync-label{font-size:11px;color:var(–muted);font-family:‘Barlow Condensed’,sans-serif;letter-spacing:.5px}
 </style>
 
 </head>
@@ -196,6 +202,7 @@ select option{background:#1e2333}
     <button class="hdr-btn settings" onclick="openSettings()">⚙ Order</button>
     <button class="hdr-btn trade" onclick="openTradeModal()">⇄ Trade</button>
     <button class="hdr-btn undo" onclick="undoPick()">↩ Undo</button>
+    <div class="sync-indicator"><div class="sync-dot" id="syncDot"></div><span class="sync-label" id="syncLabel">CONNECTING</span></div>
   </div>
 </div>
 
@@ -933,7 +940,145 @@ function showToast(msg){
   document.getElementById(id).addEventListener('click',function(e){if(e.target===this)closeModal(id);});
 });
 
-renderAll();
+// ── FIREBASE SYNC ─────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyBgWqO6UV5UIxQNAi6jgNsmns9_IDXOdso",
+  authDomain: "draft-board-75e47.firebaseapp.com",
+  databaseURL: "https://draft-board-75e47-default-rtdb.firebaseio.com",
+  projectId: "draft-board-75e47",
+  storageBucket: "draft-board-75e47.firebasestorage.app",
+  messagingSenderId: "133123915526",
+  appId: "1:133123915526:web:c60f74c6aef0ec309b6887"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const draftRef = db.ref('draftState');
+
+function setSyncStatus(status) {
+  const dot = document.getElementById('syncDot');
+  const lbl = document.getElementById('syncLabel');
+  if (status === 'live')    { dot.className='sync-dot live';  lbl.textContent='LIVE'; lbl.style.color='var(--green)'; }
+  if (status === 'saving')  { dot.className='sync-dot';       lbl.textContent='SAVING'; lbl.style.color='var(--muted)'; }
+  if (status === 'error')   { dot.className='sync-dot error'; lbl.textContent='OFFLINE'; lbl.style.color='var(--accent3)'; }
+  if (status === 'loading') { dot.className='sync-dot';       lbl.textContent='CONNECTING'; lbl.style.color='var(--muted)'; }
+}
+
+// Serialize state for Firebase (Sets aren't JSON-safe, omit UI-only fields)
+function serializeState() {
+  return {
+    draftOrder: state.draftOrder || null,
+    pickOwners: state.pickOwners || null,
+    draftLog: state.draftLog,
+    tradeLog: state.tradeLog,
+  };
+}
+
+// Push state to Firebase after every action
+function pushState() {
+  setSyncStatus('saving');
+  draftRef.set(serializeState())
+    .then(() => setSyncStatus('live'))
+    .catch(() => setSyncStatus('error'));
+}
+
+// Listen for changes from Firebase and update all viewers in real time
+let initialLoad = true;
+draftRef.on('value', snapshot => {
+  const remote = snapshot.val();
+  if (!remote) {
+    // Nothing in DB yet — fresh draft
+    setSyncStatus('live');
+    renderAll();
+    return;
+  }
+
+  // Restore state from Firebase
+  state.draftOrder  = remote.draftOrder  || null;
+  state.pickOwners  = remote.pickOwners  || null;
+  state.draftLog    = remote.draftLog    || [];
+  state.tradeLog    = remote.tradeLog    || [];
+
+  // Rebuild player drafted status from draftLog
+  state.players.forEach(p => { p.drafted=false; p.draftedBy=null; p.pickNum=null; });
+  state.draftLog.forEach(e => {
+    const p = state.players[e.id];
+    if (p) { p.drafted=true; p.draftedBy=e.team; p.pickNum=e.pickNum; }
+  });
+
+  setSyncStatus('live');
+  renderAll();
+  initialLoad = false;
+}, error => {
+  console.error('Firebase error:', error);
+  setSyncStatus('error');
+  renderAll();
+});
+
+// Patch all state-mutating functions to push after each action
+const _confirmDraft = confirmDraft;
+confirmDraft = function() {
+  const pid=state.pendingPid,tid=state.selectedTeam;
+  if(pid===null||!tid)return;
+  const p=state.players[pid];
+  const oi=curIdx(),pn=oi+1;
+  p.drafted=true;p.draftedBy=tid;p.pickNum=pn;
+  state.draftLog.push({pickNum:pn,overallIdx:oi,team:tid,name:p.name,pos:p.pos,nfl:p.nfl,id:pid,tier:p.tier});
+  closeModal('draftModal');
+  pushState();
+  showToast(`✅ Pick #${pn}: ${p.name} → ${TEAMS[tid].emoji} ${TEAMS[tid].name}`);
+};
+
+const _confirmOrder = confirmOrder;
+confirmOrder = function() {
+  const s1=parseInt(document.getElementById('slot1').value);
+  const s2=parseInt(document.getElementById('slot2').value);
+  const s3=parseInt(document.getElementById('slot3').value);
+  if(!s1||!s2||!s3||new Set([s1,s2,s3]).size<3)return;
+  if(state.draftLog.length>0&&!confirm('Draft has started. Future picks will be re-assigned. Continue?'))return;
+  state.draftOrder=[s1,s2,s3];
+  state.pickOwners=buildPickOwners(state.draftOrder);
+  state.tradeLog.forEach(tr=>{
+    tr.aGave.forEach(i=>{if(i<TOTAL)state.pickOwners[i]=tr.toB;});
+    tr.bGave.forEach(i=>{if(i<TOTAL)state.pickOwners[i]=tr.toA;});
+  });
+  closeModal('settingsModal');
+  pushState();
+  showToast(`✅ Order locked: ${[s1,s2,s3].map(t=>TEAMS[t].name).join(' → ')} (snake · ${PPT} rounds)`);
+};
+
+const _confirmTrade = confirmTrade;
+confirmTrade = function() {
+  const tidA=parseInt(document.getElementById('tradeOwnerA').value);
+  const tidB=parseInt(document.getElementById('tradeOwnerB').value);
+  const warn=document.getElementById('tradeWarning');
+  if(!tidA||!tidB){warn.style.display='block';warn.textContent='Select both owners.';return;}
+  if(tidA===tidB){warn.style.display='block';warn.textContent='Owners must be different.';return;}
+  if(!state.tradeSelA.size&&!state.tradeSelB.size){warn.style.display='block';warn.textContent='Select at least one pick.';return;}
+  const tA=TEAMS[tidA],tB=TEAMS[tidB];
+  const ai=[...state.tradeSelA],bi=[...state.tradeSelB];
+  ai.forEach(i=>state.pickOwners[i]=tidB);
+  bi.forEach(i=>state.pickOwners[i]=tidA);
+  const al=ai.map(i=>getPickLabel(i)).join(', ')||'nothing';
+  const bl=bi.map(i=>getPickLabel(i)).join(', ')||'nothing';
+  state.tradeLog.push({
+    desc:`${tA.emoji} ${tA.name} sends ${al} → ${tB.emoji} ${tB.name}; ${tB.emoji} ${tB.name} sends ${bl} → ${tA.emoji} ${tA.name}`,
+    toA:tidA,toB:tidB,aGave:ai,bGave:bi,
+  });
+  closeModal('tradeModal');
+  pushState();
+  showToast(`⇄ Trade #${state.tradeLog.length} recorded`);
+};
+
+const _undoPick = undoPick;
+undoPick = function() {
+  if(!state.draftLog.length){showToast('⚠️ No picks to undo');return;}
+  const last=state.draftLog.pop();
+  const p=state.players[last.id];
+  p.drafted=false;p.draftedBy=null;p.pickNum=null;
+  pushState();
+  showToast(`↩ Undid: ${last.name}`);
+};
 </script>
 
 </body>
