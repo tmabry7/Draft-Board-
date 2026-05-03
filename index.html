@@ -212,7 +212,7 @@ select option{background:#1e2333}
 <body>
 
 <div class="header">
-  <div class="logo">DFFL <span>Draft Board</span> <span style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:400">v1.9</span></div>
+  <div class="logo">DFFL <span>Draft Board</span> <span style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:400">v2.0</span></div>
   <div class="header-right">
     <div class="pick-indicator">
       <div class="pick-dot" id="clockDot"></div>
@@ -1260,14 +1260,16 @@ function setSyncStatus(status) {
   if (status === 'loading') { dot.className='sync-dot';       lbl.textContent='CONNECTING'; lbl.style.color='var(--muted)'; }
 }
 
-// Serialize state for Firebase (Sets aren't JSON-safe, omit UI-only fields)
+// Serialize/restore as a JSON string to avoid Firebase's array→object conversion
 function serializeState() {
   return {
-    draftOrder: state.draftOrder || null,
-    pickOwners: state.pickOwners || null,
-    draftLog: state.draftLog,
-    tradeLog: state.tradeLog,
-    receivedAssets: state.receivedAssets || {},
+    json: JSON.stringify({
+      draftOrder:    state.draftOrder    || null,
+      pickOwners:    state.pickOwners    || null,
+      draftLog:      state.draftLog,
+      tradeLog:      state.tradeLog,
+      receivedAssets:state.receivedAssets || {},
+    })
   };
 }
 
@@ -1280,56 +1282,43 @@ function pushState() {
 }
 
 // Listen for changes from Firebase and update all viewers in real time
-let initialLoad = true;
 draftRef.on('value', snapshot => {
   const remote = snapshot.val();
-  console.log('Firebase snapshot:', JSON.stringify(remote, null, 2));
-  if (!remote) {
-    // Nothing in DB yet — fresh draft
+  if (!remote || !remote.json) {
     setSyncStatus('live');
     renderAll();
     return;
   }
 
-  // Restore state from Firebase — force arrays since Firebase can return objects with numeric keys
-  state.draftOrder  = remote.draftOrder ? Object.values(remote.draftOrder) : null;
-  state.pickOwners  = remote.pickOwners ? Object.values(remote.pickOwners).map(Number) : null;
-  state.draftLog    = remote.draftLog   ? Object.values(remote.draftLog)   : [];
-  state.tradeLog    = remote.tradeLog   ? Object.values(remote.tradeLog)   : [];
-  // receivedAssets is keyed by team id — each value may be a Firebase object not array
-  const rawAssets = remote.receivedAssets || {};
-  state.receivedAssets = {};
-  Object.keys(rawAssets).forEach(tid => {
-    state.receivedAssets[tid] = rawAssets[tid] ? Object.values(rawAssets[tid]) : [];
-  });
+  let saved;
+  try { saved = JSON.parse(remote.json); }
+  catch(e) { console.error('Parse error:', e); renderAll(); return; }
 
-  // Rebuild player drafted status from draftLog
+  state.draftOrder     = saved.draftOrder     || null;
+  state.pickOwners     = saved.pickOwners     || null;
+  state.draftLog       = saved.draftLog       || [];
+  state.tradeLog       = saved.tradeLog       || [];
+  state.receivedAssets = saved.receivedAssets || {};
+
+  // Rebuild player drafted flags from draftLog
   state.players.forEach(p => { p.drafted=false; p.draftedBy=null; p.pickNum=null; p.draftedByName=null; });
   state.draftLog.forEach(e => {
     const p = state.players[e.id];
     if (p) { p.drafted=true; p.draftedBy=e.team; p.pickNum=e.pickNum; }
   });
-  // Rebuild external drafted players and pick ownership from tradeLog
+
+  // Rebuild external drafted players from tradeLog
   state.tradeLog.filter(tr=>tr.type==='external').forEach(tr=>{
-    const raw = tr.pickGivenAll || (tr.pickGiven!=null?[tr.pickGiven]:[]);
-    const pickIdxs = Array.isArray(raw) ? raw : Object.values(raw);
-    pickIdxs.forEach(idx=>{ if(state.pickOwners&&idx<state.pickOwners.length) state.pickOwners[idx]=0; });
+    const pickIdxs = tr.pickGivenAll || (tr.pickGiven!=null ? [tr.pickGiven] : []);
+    pickIdxs.forEach(idx=>{ if(state.pickOwners && idx<state.pickOwners.length) state.pickOwners[idx]=0; });
     if(tr.poolPlayer){
       const p = state.players.find(pl=>pl.name===tr.poolPlayer);
-      if(p){p.drafted=true;p.draftedBy='ext';p.draftedByName=tr.extTeam;p.pickNum=pickIdxs.map(i=>getPickLabel(i)).join(', ');}
+      if(p){ p.drafted=true; p.draftedBy='ext'; p.draftedByName=tr.extTeam; p.pickNum=pickIdxs.map(i=>getPickLabel(i)).join(', '); }
     }
   });
 
   setSyncStatus('live');
-  console.log('State after restore:', {
-    draftOrder: state.draftOrder,
-    pickOwnersIsArray: Array.isArray(state.pickOwners),
-    pickOwnersLength: state.pickOwners ? state.pickOwners.length : 0,
-    draftLogLength: state.draftLog.length,
-    tradeLogLength: state.tradeLog.length,
-  });
   renderAll();
-  initialLoad = false;
 }, error => {
   console.error('Firebase error:', error);
   setSyncStatus('error');
