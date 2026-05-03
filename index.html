@@ -212,7 +212,7 @@ select option{background:#1e2333}
 <body>
 
 <div class="header">
-  <div class="logo">DFFL <span>Draft Board</span> <span style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:400">v2.0</span></div>
+  <div class="logo">DFFL <span>Draft Board</span> <span style="font-size:11px;color:var(--muted);letter-spacing:1px;font-family:'Barlow Condensed',sans-serif;font-weight:400">v2.1</span></div>
   <div class="header-right">
     <div class="pick-indicator">
       <div class="pick-dot" id="clockDot"></div>
@@ -222,7 +222,8 @@ select option{background:#1e2333}
     <button class="hdr-btn settings" onclick="openSettings()">⚙ Order</button>
     <button class="hdr-btn trade" onclick="openTradeModal()">⇄ Internal Trade</button>
     <button class="hdr-btn ext" onclick="openExtTradeModal()">🌐 Ext. Trade</button>
-    <button class="hdr-btn undo" onclick="undoPick()">↩ Undo</button>
+    <button class="hdr-btn undo" onclick="undoPick()">↩ Undo Pick</button>
+    <button class="hdr-btn undo" onclick="undoTrade()">↩ Undo Trade</button>
     <div class="sync-indicator"><div class="sync-dot" id="syncDot"></div><span class="sync-label" id="syncLabel">CONNECTING</span></div>
   </div>
 </div>
@@ -777,8 +778,18 @@ function renderTeamPanels(){
   [1,2,3].forEach(tid=>{
     const t=TEAMS[tid];
     const dr=state.draftLog.filter(e=>e.team===tid);
+    const received=(state.receivedAssets&&state.receivedAssets[tid])||[];
+
+    // Build a unified roster combining drafted players and traded-in assets
+    // Each entry: {name, pos, nfl, tier, via} where via='draft'|'trade'
+    const roster=[
+      ...dr.map(e=>({name:e.name,pos:e.pos,nfl:e.nfl,tier:e.tier,via:'draft',pickNum:e.pickNum})),
+      ...received.map(a=>({name:a.name,pos:a.pos,nfl:'—',tier:2,via:'trade',from:a.from,pickGiven:a.pickGiven})),
+    ];
+
+    // Count by position for needs bar
     const c={QB:0,RB:0,WR:0,TE:0,PK:0,DL:0,LB:0,DB:0};
-    dr.forEach(e=>{
+    roster.forEach(e=>{
       if(e.pos==='QB')c.QB++;else if(e.pos==='RB')c.RB++;else if(e.pos==='WR')c.WR++;
       else if(e.pos==='TE')c.TE++;else if(e.pos==='PK')c.PK++;
       else if(isDL(e.pos))c.DL++;else if(isLB(e.pos))c.LB++;else if(isDB(e.pos))c.DB++;
@@ -793,43 +804,65 @@ function renderTeamPanels(){
       {label:'DB',req:2,filled:Math.min(c.DB,2)},{label:'D-FLEX',req:2,filled:Math.min(dfx,2)},
     ].map(n=>({...n,met:n.filled>=n.req}));
 
+    // Fill starter slots from the unified roster
     const used=new Set();
-    const pick=fn=>{const f=dr.find(e=>!used.has(e.pickNum)&&fn(e));if(f)used.add(f.pickNum);return f||null;};
+    const pick=fn=>{
+      const f=roster.find(e=>!used.has(e.name)&&fn(e));
+      if(f)used.add(f.name);
+      return f||null;
+    };
     const slots=[
-      {s:'QB',p:pick(e=>e.pos==='QB')},{s:'RB',p:pick(e=>e.pos==='RB')},{s:'RB',p:pick(e=>e.pos==='RB')},
-      {s:'WR',p:pick(e=>e.pos==='WR')},{s:'WR',p:pick(e=>e.pos==='WR')},{s:'WR',p:pick(e=>e.pos==='WR')},
-      {s:'TE',p:pick(e=>e.pos==='TE')},{s:'FLEX',p:pick(e=>isFlex(e.pos))},{s:'K',p:pick(e=>e.pos==='PK')},
-      {s:'DL',p:pick(e=>isDL(e.pos))},{s:'DL',p:pick(e=>isDL(e.pos))},
-      {s:'LB',p:pick(e=>isLB(e.pos))},{s:'LB',p:pick(e=>isLB(e.pos))},
-      {s:'DB',p:pick(e=>isDB(e.pos))},{s:'DB',p:pick(e=>isDB(e.pos))},
-      {s:'D-FLEX',p:pick(e=>isDEF(e.pos))},{s:'D-FLEX',p:pick(e=>isDEF(e.pos))},
+      {s:'QB',    p:pick(e=>e.pos==='QB')},
+      {s:'RB',    p:pick(e=>e.pos==='RB')},
+      {s:'RB',    p:pick(e=>e.pos==='RB')},
+      {s:'WR',    p:pick(e=>e.pos==='WR')},
+      {s:'WR',    p:pick(e=>e.pos==='WR')},
+      {s:'WR',    p:pick(e=>e.pos==='WR')},
+      {s:'TE',    p:pick(e=>e.pos==='TE')},
+      {s:'FLEX',  p:pick(e=>isFlex(e.pos))},
+      {s:'K',     p:pick(e=>e.pos==='PK')},
+      {s:'DL',    p:pick(e=>isDL(e.pos))},
+      {s:'DL',    p:pick(e=>isDL(e.pos))},
+      {s:'LB',    p:pick(e=>isLB(e.pos))},
+      {s:'LB',    p:pick(e=>isLB(e.pos))},
+      {s:'DB',    p:pick(e=>isDB(e.pos))},
+      {s:'DB',    p:pick(e=>isDB(e.pos))},
+      {s:'D-FLEX',p:pick(e=>isDEF(e.pos))},
+      {s:'D-FLEX',p:pick(e=>isDEF(e.pos))},
     ];
-    const bench=dr.filter(e=>!used.has(e.pickNum));
+
+    const bench=roster.filter(e=>!used.has(e.name));
     const rem=state.pickOwners?state.pickOwners.filter((o,i)=>o===tid&&!pickIsUsed(i)).length:0;
-    const received=(state.receivedAssets&&state.receivedAssets[tid])||[];
+    const totalRoster=roster.length;
+
+    // Render a roster slot card — drafted and traded look slightly different
+    const slotCard=(s,p)=>{
+      if(!p) return `<div class="roster-slot empty"><span class="slot-pos" style="color:var(--muted)">${s}</span><span style="color:var(--muted);font-size:11px">Empty</span></div>`;
+      const tradeTag=p.via==='trade'?`<span class="tag-traded">TRADE</span>`:'';
+      const meta=p.via==='trade'
+        ?`<span style="color:#3ecf6e;font-size:10px">from ${p.from}</span>`
+        :`<span style="color:var(--muted);font-size:10px">${p.pos}·${p.nfl||'—'}</span>`;
+      const tierBadge=p.tier?`<span class="tier-label tier-${p.tier}" style="margin-left:auto">${TIER_LABELS[p.tier]}</span>`:'';
+      return`<div class="roster-slot" style="${p.via==='trade'?'border-color:rgba(62,207,110,.3)':''}">
+        <span class="slot-pos pos-badge pos-${p.pos}">${s}</span>
+        <div><div class="slot-player">${p.name}${tradeTag}</div>${meta}</div>
+        ${tierBadge}
+      </div>`;
+    };
 
     document.getElementById('panel-team'+tid).innerHTML=`
       <div class="team-header" style="background:linear-gradient(135deg,var(--surface) 0%,rgba(${t.rgb},.08) 100%);border:1px solid var(--border)">
         <div class="team-icon">${t.emoji}</div>
         <div class="team-info">
           <h2 style="color:${t.cssVar}">${t.name}</h2>
-          <div class="team-meta">${dr.length} / ${PPT} drafted · ${rem} picks remaining</div>
+          <div class="team-meta">${totalRoster} / ${PPT} on roster · ${rem} picks remaining</div>
           <div class="needs-bar">${needs.map(n=>`<div class="need-chip${n.met?' filled':''}" style="background:rgba(${t.rgb},.1);border:1px solid rgba(${t.rgb},.3)"><span class="need-dot" style="background:${n.met?t.hex:'var(--muted)'}"></span>${n.req>1?n.req+'× ':''}${n.label}${n.met?' ✓':''}</div>`).join('')}</div>
         </div>
       </div>
       <div class="section-title" style="margin-bottom:8px">Starters</div>
-      <div class="roster-grid">${slots.map(({s,p})=>p
-        ?`<div class="roster-slot"><span class="slot-pos pos-badge pos-${p.pos}">${s}</span><div><div class="slot-player">${p.name}</div><div class="slot-meta">${p.pos}·${p.nfl||'—'}</div></div><span class="tier-label tier-${p.tier}" style="margin-left:auto">${TIER_LABELS[p.tier]}</span></div>`
-        :`<div class="roster-slot empty"><span class="slot-pos" style="color:var(--muted)">${s}</span><span style="color:var(--muted);font-size:11px">Empty</span></div>`
-      ).join('')}</div>
+      <div class="roster-grid">${slots.map(({s,p})=>slotCard(s,p)).join('')}</div>
       ${bench.length?`<div class="section-title" style="margin-top:16px;margin-bottom:8px">Bench (${bench.length})</div>
-      <div class="roster-grid">${bench.map(p=>`<div class="roster-slot"><span class="slot-pos pos-badge pos-${p.pos}">${p.pos}</span><div><div class="slot-player">${p.name}</div><div class="slot-meta">${p.nfl||'—'}</div></div><span class="tier-label tier-${p.tier}" style="margin-left:auto">${TIER_LABELS[p.tier]}</span></div>`).join('')}</div>`:''}
-      ${received.length?`<div class="section-title" style="margin-top:16px;margin-bottom:8px;color:#3ecf6e">🌐 Received via Trade (${received.length})</div>
-      <div class="roster-grid">${received.map(a=>`<div class="roster-slot" style="border-color:rgba(62,207,110,.3)">
-        <span class="slot-pos pos-badge pos-${a.pos}">${a.pos}</span>
-        <div><div class="slot-player">${a.name}</div><div class="slot-meta" style="color:#3ecf6e">from ${a.from} · for ${a.pickGiven}</div></div>
-        <span class="tag-traded" style="margin-left:auto">TRADE</span>
-      </div>`).join('')}</div>`:''}
+      <div class="roster-grid">${bench.map(p=>slotCard(p.pos,p)).join('')}</div>`:''}
     `;
   });
 }
@@ -1207,7 +1240,39 @@ function undoPick(){
   const p=state.players[last.id];
   p.drafted=false;p.draftedBy=null;p.pickNum=null;
   pushState();
-  showToast(`↩ Undid: ${last.name}`);
+  showToast(`↩ Undid pick: ${last.name}`);
+}
+
+function undoTrade(){
+  if(!state.tradeLog.length){showToast('⚠️ No trades to undo');return;}
+  const last=state.tradeLog.pop();
+
+  if(last.type==='external'){
+    // Restore pick ownership back to original owner
+    const pickIdxs=last.pickGivenAll||[last.pickGiven];
+    pickIdxs.forEach(idx=>{
+      if(state.pickOwners&&idx<state.pickOwners.length) state.pickOwners[idx]=last.toOwner;
+    });
+    // Remove received assets for this owner that came from this trade
+    if(state.receivedAssets&&state.receivedAssets[last.toOwner]){
+      const assetNames=new Set((last.assetsIn||[]).map(a=>a.name));
+      state.receivedAssets[last.toOwner]=state.receivedAssets[last.toOwner].filter(a=>!assetNames.has(a.name));
+    }
+    // Unmark pool player if one was selected
+    if(last.poolPlayer){
+      const p=state.players.find(pl=>pl.name===last.poolPlayer);
+      if(p){p.drafted=false;p.draftedBy=null;p.pickNum=null;p.draftedByName=null;}
+    }
+  } else {
+    // Internal trade — swap picks back
+    const ag=last.aGave||[];
+    const bg=last.bGave||[];
+    ag.forEach(i=>{if(state.pickOwners&&i<state.pickOwners.length)state.pickOwners[i]=last.toA;});
+    bg.forEach(i=>{if(state.pickOwners&&i<state.pickOwners.length)state.pickOwners[i]=last.toB;});
+  }
+
+  pushState();
+  showToast(`↩ Undid trade #${state.tradeLog.length+1}`);
 }
 
 // ── HELPERS ───────────────────────────────────────────────
