@@ -431,7 +431,7 @@ select option{background:#1e2333}
 <div class="ext-trade-divider">OWNER GIVES UP PICK — OUTSIDE TEAM SELECTS</div>
 
 <div class="ext-trade-section">
-  <div class="modal-label">Which draft pick does the outside team receive?</div>
+  <div class="modal-label">Which draft pick(s) does the outside team receive? <span style="color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0">(tap to select multiple)</span></div>
   <div class="pool-pick-list" id="extPickList"><div style="color:var(--muted);font-size:11px;padding:4px">Select an owner above first.</div></div>
 </div>
 
@@ -752,7 +752,10 @@ function renderPickOrderSidebar(){
     const t=TEAMS[state.pickOwners[i]];
     const isDone=i<done,onClock=i===done;
     const le=isDone?state.draftLog.find(e=>e.overallIdx===i):null;
-    const traded=state.tradeLog.some(tr=>[...tr.aGave,...tr.bGave].includes(i));
+    const traded=state.tradeLog.some(tr=>{
+      if(tr.type==='external') return tr.pickGiven===i;
+      return [...(tr.aGave||[]),...(tr.bGave||[])].includes(i);
+    });
     html+=`<div class="pick-slot${isDone?' done':''}${onClock?' on-clock':''}">
       <span class="pick-round" style="color:${t.hex}">${getPickLabel(i)}</span>
       <span style="color:${t.hex};font-size:12px;font-weight:600">${t.emoji} ${t.name}</span>
@@ -843,7 +846,10 @@ function renderPicksPage(){
         const idx=base+p,t=TEAMS[state.pickOwners[idx]];
         const done=pickIsUsed(idx);
         const le=state.draftLog.find(e=>e.overallIdx===idx);
-        const traded=state.tradeLog.some(tr=>[...tr.aGave,...tr.bGave].includes(idx));
+        const traded=state.tradeLog.some(tr=>{
+          if(tr.type==='external') return tr.pickGiven===idx;
+          return [...(tr.aGave||[]),...(tr.bGave||[])].includes(idx);
+        });
         html+=`<div class="order-pick" style="opacity:${done?.38:1}">
           <span class="order-pick-num" style="color:${t.hex}">${getPickLabel(idx)}</span>
           <span class="snake-pip" style="background:rgba(${t.rgb},.15);color:${t.hex}">${t.emoji} ${t.name}</span>
@@ -857,14 +863,19 @@ function renderPicksPage(){
   }
   const tl=document.getElementById('tradeLogList');
   if(!state.tradeLog.length){tl.innerHTML='<div class="empty-trades">No trades recorded yet.</div>';return;}
-  tl.innerHTML='<div class="trade-log-list">'+state.tradeLog.map((tr,i)=>`
-    <div class="trade-entry">
-      <div class="trade-entry-title">TRADE #${i+1}</div>
+  tl.innerHTML='<div class="trade-log-list">'+state.tradeLog.map((tr,i)=>{
+    const pickTags = tr.type==='external'
+      ? (tr.pickGiven!==undefined&&tr.pickGiven!==null ? [tr.pickGiven] : []).map(idx=>`<span class="pick-trade-tag" style="background:rgba(62,207,110,.15);color:#3ecf6e">${getPickLabel(idx)}</span>`).join('')
+      : [...(tr.aGave||[]),...(tr.bGave||[])].map(idx=>`<span class="pick-trade-tag" style="background:rgba(245,200,66,.15);color:var(--accent1)">${getPickLabel(idx)}</span>`).join('');
+    const badge = tr.type==='external'
+      ? '<span style="font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(62,207,110,.15);color:#3ecf6e;font-family:\'Barlow Condensed\',sans-serif;font-weight:700;margin-left:6px">EXT</span>'
+      : '<span style="font-size:10px;padding:2px 6px;border-radius:3px;background:rgba(79,142,247,.15);color:var(--accent2);font-family:\'Barlow Condensed\',sans-serif;font-weight:700;margin-left:6px">INTERNAL</span>';
+    return`<div class="trade-entry">
+      <div class="trade-entry-title">TRADE #${i+1}${badge}</div>
       <div class="trade-entry-detail">${tr.desc}</div>
-      <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap">
-        ${[...tr.aGave,...tr.bGave].map(idx=>`<span class="pick-trade-tag" style="background:rgba(245,200,66,.15);color:var(--accent1)">${getPickLabel(idx)}</span>`).join('')}
-      </div>
-    </div>`).join('')+'</div>';
+      ${pickTags?`<div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap">${pickTags}</div>`:''}
+    </div>`;
+  }).join('')+'</div>';
 }
 
 // ── SETTINGS ──────────────────────────────────────────────
@@ -908,13 +919,18 @@ function confirmOrder(){
   if(state.draftLog.length>0&&!confirm('Draft has started. Future picks will be re-assigned to this new order. Continue?'))return;
   state.draftOrder=[s1,s2,s3];
   state.pickOwners=buildPickOwners(state.draftOrder);
-  // Re-apply trades
+  // Re-apply all recorded trades to restored pickOwners
   state.tradeLog.forEach(tr=>{
-    tr.aGave.forEach(idx=>{if(idx<TOTAL)state.pickOwners[idx]=tr.toB;});
-    tr.bGave.forEach(idx=>{if(idx<TOTAL)state.pickOwners[idx]=tr.toA;});
+    if(tr.type==='external'){
+      const idxs=tr.pickGivenAll||(tr.pickGiven!=null?[tr.pickGiven]:[]);
+      idxs.forEach(i=>{if(i<TOTAL)state.pickOwners[i]=0;});
+    } else {
+      (tr.aGave||[]).forEach(i=>{if(i<TOTAL)state.pickOwners[i]=tr.toB;});
+      (tr.bGave||[]).forEach(i=>{if(i<TOTAL)state.pickOwners[i]=tr.toA;});
+    }
   });
   closeModal('settingsModal');
-  renderAll();
+  pushState();
   showToast(`✅ Order locked: ${[s1,s2,s3].map(t=>TEAMS[t].name).join(' → ')} (snake · ${PPT} rounds)`);
 }
 
@@ -943,7 +959,8 @@ function confirmDraft(){
   const oi=curIdx(),pn=oi+1;
   p.drafted=true;p.draftedBy=tid;p.pickNum=pn;
   state.draftLog.push({pickNum:pn,overallIdx:oi,team:tid,name:p.name,pos:p.pos,nfl:p.nfl,id:pid,tier:p.tier});
-  closeModal('draftModal');renderAll();
+  closeModal('draftModal');
+  pushState();
   showToast(`✅ Pick #${pn}: ${p.name} → ${TEAMS[tid].emoji} ${TEAMS[tid].name}`);
 }
 
@@ -1009,20 +1026,21 @@ function confirmTrade(){
     desc:`${tA.emoji} ${tA.name} sends ${al} → ${tB.emoji} ${tB.name}; ${tB.emoji} ${tB.name} sends ${bl} → ${tA.emoji} ${tA.name}`,
     toA:tidA,toB:tidB,aGave:ai,bGave:bi,
   });
-  closeModal('tradeModal');renderAll();
+  closeModal('tradeModal');
+  pushState();
   showToast(`⇄ Trade #${state.tradeLog.length} recorded`);
 }
 
 // ── EXTERNAL TRADE ────────────────────────────────────────
 let extState = {
   selectedOwner: null,
-  incomingAssets: [],   // [{name, pos}]
-  selectedPickIdx: null,
+  incomingAssets: [],
+  selectedPicks: new Set(),  // supports multiple picks
   selectedPoolPlayerId: null,
 };
 
 function openExtTradeModal() {
-  extState = {selectedOwner:null, incomingAssets:[], selectedPickIdx:null, selectedPoolPlayerId:null};
+  extState = {selectedOwner:null, incomingAssets:[], selectedPicks:new Set(), selectedPoolPlayerId:null};
   document.getElementById('extTeamName').value = '';
   document.getElementById('extAssetName').value = '';
   document.getElementById('extPoolSelection').value = '';
@@ -1037,7 +1055,7 @@ function openExtTradeModal() {
 
 function extSelectOwner(tid) {
   extState.selectedOwner = tid;
-  extState.selectedPickIdx = null;
+  extState.selectedPicks = new Set();
   document.querySelectorAll('#extTradeModal .team-select-btn').forEach(b=>b.classList.remove('sel'));
   document.querySelectorAll('#extTradeModal .team-select-btn')[tid-1].classList.add('sel');
   renderExtPickList();
@@ -1051,18 +1069,17 @@ function renderExtPickList() {
   const t = TEAMS[tid];
   const picks = state.pickOwners.map((o,i)=>({i,o,label:getPickLabel(i)})).filter(p=>p.o===tid&&!pickIsUsed(p.i));
   if (!picks.length) { el.innerHTML = '<div style="color:var(--muted);font-size:11px;padding:4px">No remaining picks for this owner.</div>'; return; }
-  el.innerHTML = picks.map(p=>`<div class="pool-pick-item${extState.selectedPickIdx===p.i?' selected':''}" id="extpick-${p.i}" onclick="selectExtPick(${p.i})">
+  el.innerHTML = picks.map(p=>`<div class="pool-pick-item${extState.selectedPicks.has(p.i)?' selected':''}" id="extpick-${p.i}" onclick="selectExtPick(${p.i})">
     <span style="color:${t.hex};font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px">${p.label}</span>
     <span style="color:var(--muted);font-size:10px">${t.emoji} ${t.name}</span>
   </div>`).join('');
 }
 
 function selectExtPick(idx) {
-  extState.selectedPickIdx = idx;
-  document.querySelectorAll('.pool-pick-item').forEach(el=>{
-    if(el.id===`extpick-${idx}`) el.classList.add('selected');
-    else if(el.id.startsWith('extpick-')) el.classList.remove('selected');
-  });
+  if(extState.selectedPicks.has(idx)) extState.selectedPicks.delete(idx);
+  else extState.selectedPicks.add(idx);
+  const el=document.getElementById(`extpick-${idx}`);
+  if(el) el.classList.toggle('selected', extState.selectedPicks.has(idx));
   updateExtSummary();
 }
 
@@ -1115,7 +1132,7 @@ function updateExtSummary() {
   const extName = document.getElementById('extTeamName').value.trim() || 'Outside Team';
   const tid = extState.selectedOwner;
   const tName = tid ? `${TEAMS[tid].emoji} ${TEAMS[tid].name}` : '(owner TBD)';
-  const pickLabel = extState.selectedPickIdx !== null ? getPickLabel(extState.selectedPickIdx) : '(pick TBD)';
+  const pickLabel = extState.selectedPicks.size ? [...extState.selectedPicks].map(i=>getPickLabel(i)).join(', ') : '(pick TBD)';
   const assetsIn = extState.incomingAssets.length ? extState.incomingAssets.map(a=>`${a.name} (${a.pos})`).join(', ') : '(none added yet)';
   const poolPlayer = extState.selectedPoolPlayerId !== null ? state.players[extState.selectedPoolPlayerId].name : '(TBD — can log later)';
   el.innerHTML = `<strong style="color:#3ecf6e">${extName}</strong> sends <strong>${assetsIn}</strong> to <strong>${tName}</strong><br>
@@ -1129,15 +1146,16 @@ function confirmExtTrade() {
   const tid = extState.selectedOwner;
   if (!tid) { warn.style.display='block'; warn.textContent='Select which owner receives the trade.'; return; }
   if (extState.incomingAssets.length === 0) { warn.style.display='block'; warn.textContent='Add at least one incoming asset.'; return; }
-  if (extState.selectedPickIdx === null) { warn.style.display='block'; warn.textContent='Select which draft pick the outside team receives.'; return; }
+  if (extState.selectedPicks.size === 0) { warn.style.display='block'; warn.textContent='Select at least one draft pick the outside team receives.'; return; }
   warn.style.display = 'none';
 
   const t = TEAMS[tid];
-  const pickLabel = getPickLabel(extState.selectedPickIdx);
+  const pickIdxs = [...extState.selectedPicks];
+  const pickLabels = pickIdxs.map(i=>getPickLabel(i)).join(', ');
   const assetsIn = extState.incomingAssets.map(a=>`${a.name} (${a.pos})`).join(', ');
 
-  // Remove the pick from the owner — assign to a special "external" slot (0 = external)
-  state.pickOwners[extState.selectedPickIdx] = 0;
+  // Remove all traded picks from owner — assign to external (0)
+  pickIdxs.forEach(idx => { state.pickOwners[idx] = 0; });
 
   // Mark pool player as drafted by external team if selected
   let poolPlayerName = null;
@@ -1146,19 +1164,19 @@ function confirmExtTrade() {
     pp.drafted = true;
     pp.draftedBy = 'ext';
     pp.draftedByName = extName;
-    pp.pickNum = pickLabel;
+    pp.pickNum = pickLabels;
     poolPlayerName = pp.name;
   }
 
-  // Add incoming assets to the owner's receivedAssets list
+  // Add incoming assets to owner's receivedAssets
   if (!state.receivedAssets) state.receivedAssets = {};
   if (!state.receivedAssets[tid]) state.receivedAssets[tid] = [];
   extState.incomingAssets.forEach(a => {
-    state.receivedAssets[tid].push({...a, from: extName, pickGiven: pickLabel});
+    state.receivedAssets[tid].push({...a, from: extName, pickGiven: pickLabels});
   });
 
-  const desc = `${extName} sends ${assetsIn} to ${t.emoji} ${t.name} for pick ${pickLabel}${poolPlayerName ? `. ${extName} selects ${poolPlayerName} from the pool.` : ''}`;
-  state.tradeLog.push({desc, type:'external', extTeam:extName, toOwner:tid, assetsIn:extState.incomingAssets, pickGiven:extState.selectedPickIdx, poolPlayer:poolPlayerName});
+  const desc = `${extName} sends ${assetsIn} to ${t.emoji} ${t.name} for pick(s) ${pickLabels}${poolPlayerName ? `. ${extName} selects ${poolPlayerName} from the pool.` : ''}`;
+  state.tradeLog.push({desc, type:'external', extTeam:extName, toOwner:tid, assetsIn:extState.incomingAssets, pickGiven:pickIdxs[0], pickGivenAll:pickIdxs, poolPlayer:poolPlayerName});
 
   closeModal('extTradeModal');
   pushState();
@@ -1171,7 +1189,8 @@ function undoPick(){
   const last=state.draftLog.pop();
   const p=state.players[last.id];
   p.drafted=false;p.draftedBy=null;p.pickNum=null;
-  renderAll();showToast(`↩ Undid: ${last.name}`);
+  pushState();
+  showToast(`↩ Undid: ${last.name}`);
 }
 
 // ── HELPERS ───────────────────────────────────────────────
@@ -1267,10 +1286,14 @@ draftRef.on('value', snapshot => {
     const p = state.players[e.id];
     if (p) { p.drafted=true; p.draftedBy=e.team; p.pickNum=e.pickNum; }
   });
-  // Rebuild external drafted players from tradeLog
-  state.tradeLog.filter(tr=>tr.type==='external'&&tr.poolPlayer).forEach(tr=>{
-    const p = state.players.find(pl=>pl.name===tr.poolPlayer);
-    if (p) { p.drafted=true; p.draftedBy='ext'; p.draftedByName=tr.extTeam; p.pickNum=tr.pickGiven!==undefined?getPickLabel(tr.pickGiven):'—'; }
+  // Rebuild external drafted players and pick ownership from tradeLog
+  state.tradeLog.filter(tr=>tr.type==='external').forEach(tr=>{
+    const pickIdxs = tr.pickGivenAll || (tr.pickGiven!==undefined&&tr.pickGiven!==null ? [tr.pickGiven] : []);
+    pickIdxs.forEach(idx=>{ if(state.pickOwners&&idx<state.pickOwners.length) state.pickOwners[idx]=0; });
+    if(tr.poolPlayer){
+      const p = state.players.find(pl=>pl.name===tr.poolPlayer);
+      if(p){p.drafted=true;p.draftedBy='ext';p.draftedByName=tr.extTeam;p.pickNum=pickIdxs.map(i=>getPickLabel(i)).join(', ');}
+    }
   });
 
   setSyncStatus('live');
@@ -1281,71 +1304,6 @@ draftRef.on('value', snapshot => {
   setSyncStatus('error');
   renderAll();
 });
-
-// Patch all state-mutating functions to push after each action
-const _confirmDraft = confirmDraft;
-confirmDraft = function() {
-  const pid=state.pendingPid,tid=state.selectedTeam;
-  if(pid===null||!tid)return;
-  const p=state.players[pid];
-  const oi=curIdx(),pn=oi+1;
-  p.drafted=true;p.draftedBy=tid;p.pickNum=pn;
-  state.draftLog.push({pickNum:pn,overallIdx:oi,team:tid,name:p.name,pos:p.pos,nfl:p.nfl,id:pid,tier:p.tier});
-  closeModal('draftModal');
-  pushState();
-  showToast(`✅ Pick #${pn}: ${p.name} → ${TEAMS[tid].emoji} ${TEAMS[tid].name}`);
-};
-
-const _confirmOrder = confirmOrder;
-confirmOrder = function() {
-  const s1=parseInt(document.getElementById('slot1').value);
-  const s2=parseInt(document.getElementById('slot2').value);
-  const s3=parseInt(document.getElementById('slot3').value);
-  if(!s1||!s2||!s3||new Set([s1,s2,s3]).size<3)return;
-  if(state.draftLog.length>0&&!confirm('Draft has started. Future picks will be re-assigned. Continue?'))return;
-  state.draftOrder=[s1,s2,s3];
-  state.pickOwners=buildPickOwners(state.draftOrder);
-  state.tradeLog.forEach(tr=>{
-    tr.aGave.forEach(i=>{if(i<TOTAL)state.pickOwners[i]=tr.toB;});
-    tr.bGave.forEach(i=>{if(i<TOTAL)state.pickOwners[i]=tr.toA;});
-  });
-  closeModal('settingsModal');
-  pushState();
-  showToast(`✅ Order locked: ${[s1,s2,s3].map(t=>TEAMS[t].name).join(' → ')} (snake · ${PPT} rounds)`);
-};
-
-const _confirmTrade = confirmTrade;
-confirmTrade = function() {
-  const tidA=parseInt(document.getElementById('tradeOwnerA').value);
-  const tidB=parseInt(document.getElementById('tradeOwnerB').value);
-  const warn=document.getElementById('tradeWarning');
-  if(!tidA||!tidB){warn.style.display='block';warn.textContent='Select both owners.';return;}
-  if(tidA===tidB){warn.style.display='block';warn.textContent='Owners must be different.';return;}
-  if(!state.tradeSelA.size&&!state.tradeSelB.size){warn.style.display='block';warn.textContent='Select at least one pick.';return;}
-  const tA=TEAMS[tidA],tB=TEAMS[tidB];
-  const ai=[...state.tradeSelA],bi=[...state.tradeSelB];
-  ai.forEach(i=>state.pickOwners[i]=tidB);
-  bi.forEach(i=>state.pickOwners[i]=tidA);
-  const al=ai.map(i=>getPickLabel(i)).join(', ')||'nothing';
-  const bl=bi.map(i=>getPickLabel(i)).join(', ')||'nothing';
-  state.tradeLog.push({
-    desc:`${tA.emoji} ${tA.name} sends ${al} → ${tB.emoji} ${tB.name}; ${tB.emoji} ${tB.name} sends ${bl} → ${tA.emoji} ${tA.name}`,
-    toA:tidA,toB:tidB,aGave:ai,bGave:bi,
-  });
-  closeModal('tradeModal');
-  pushState();
-  showToast(`⇄ Trade #${state.tradeLog.length} recorded`);
-};
-
-const _undoPick = undoPick;
-undoPick = function() {
-  if(!state.draftLog.length){showToast('⚠️ No picks to undo');return;}
-  const last=state.draftLog.pop();
-  const p=state.players[last.id];
-  p.drafted=false;p.draftedBy=null;p.pickNum=null;
-  pushState();
-  showToast(`↩ Undid: ${last.name}`);
-};
 </script>
 
 </body>
