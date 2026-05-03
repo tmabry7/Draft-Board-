@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DFFL Dynasty Replacement Draft</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@400;600;700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#0d0f14;--surface:#161a24;--surface2:#1e2333;--border:#2a3050;
+    --accent1:#f5c842;--accent2:#4f8ef7;--accent3:#e84855;
+    --t1:#7ecfb8;--t2:#f5a623;--t3:#c47af5;
+    --text:#e8ecf4;--muted:#6b7599;--green:#3ecf6e;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh}
+
+.header{background:linear-gradient(135deg,#0d0f14 0%,#1a1f35 100%);border-bottom:2px solid var(–accent1);padding:13px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;gap:10px;flex-wrap:wrap}
+.logo{font-family:‘Bebas Neue’,sans-serif;font-size:25px;letter-spacing:3px;color:var(–accent1);flex-shrink:0}
+.logo span{color:var(–text)}
+.header-right{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.pick-indicator{display:flex;align-items:center;gap:9px;background:var(–surface2);border:1px solid var(–border);border-radius:8px;padding:7px 13px}
+.pick-dot{width:11px;height:11px;border-radius:50%;animation:pulse 1.5s infinite;flex-shrink:0}
+.pick-label{font-family:‘Barlow Condensed’,sans-serif;font-size:16px;font-weight:700;letter-spacing:1px}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+.pick-counter{font-size:11px;color:var(–muted)}
+.hdr-btn{font-family:‘Barlow Condensed’,sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;padding:6px 12px;border-radius:5px;border:1px solid var(–border);background:none;cursor:pointer;transition:all .15s}
+.hdr-btn.undo{color:var(–muted)}.hdr-btn.undo:hover{color:var(–accent3);border-color:var(–accent3)}
+.hdr-btn.settings{color:var(–accent1);border-color:rgba(245,200,66,.4)}.hdr-btn.settings:hover{background:rgba(245,200,66,.1)}
+.hdr-btn.trade{color:var(–accent2);border-color:rgba(79,142,247,.4)}.hdr-btn.trade:hover{background:rgba(79,142,247,.1)}
+
+.tabs{display:flex;gap:2px;background:var(–surface);border-bottom:1px solid var(–border);padding:0 14px;overflow-x:auto}
+.tab{font-family:‘Barlow Condensed’,sans-serif;font-size:14px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;padding:11px 16px;cursor:pointer;border:none;background:none;color:var(–muted);border-bottom:3px solid transparent;transition:all .2s;white-space:nowrap}
+.tab:hover{color:var(–text)}
+.tab.active{color:var(–accent1);border-bottom-color:var(–accent1)}
+.tab.team1.active{color:var(–t1);border-bottom-color:var(–t1)}
+.tab.team2.active{color:var(–t2);border-bottom-color:var(–t2)}
+.tab.team3.active{color:var(–t3);border-bottom-color:var(–t3)}
+
+.content{padding:16px;max-width:1400px;margin:0 auto}
+.panel{display:none}.panel.active{display:block}
+
+.board-grid{display:grid;grid-template-columns:1fr 265px;gap:16px}
+@media(max-width:900px){.board-grid{grid-template-columns:1fr}}
+
+.board-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px}
+.section-title{font-family:‘Bebas Neue’,sans-serif;font-size:19px;letter-spacing:2px;color:var(–accent1)}
+.filters{display:flex;gap:5px;flex-wrap:wrap}
+.filter-btn{font-family:‘Barlow Condensed’,sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;padding:4px 10px;border-radius:4px;border:1px solid var(–border);background:var(–surface);color:var(–muted);cursor:pointer;transition:all .15s}
+.filter-btn:hover,.filter-btn.active{border-color:var(–accent1);color:var(–accent1);background:rgba(245,200,66,.08)}
+.search-box{background:var(–surface2);border:1px solid var(–border);border-radius:6px;padding:5px 10px;color:var(–text);font-family:‘Barlow’,sans-serif;font-size:13px;width:160px}
+.search-box:focus{outline:none;border-color:var(–accent1)}
+
+.player-table{width:100%;border-collapse:collapse}
+.player-table th{font-family:‘Barlow Condensed’,sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(–muted);text-align:left;padding:7px 8px;border-bottom:1px solid var(–border);background:var(–bg)}
+.player-row{border-bottom:1px solid rgba(42,48,80,.5);transition:background .12s}
+.player-row:hover{background:var(–surface2)}
+.player-row.drafted{opacity:.28;pointer-events:none}
+.player-row td{padding:7px 8px;font-size:13px}
+.rank-badge{display:inline-block;width:24px;text-align:center;font-family:‘Barlow Condensed’,sans-serif;font-weight:700;font-size:12px;color:var(–muted)}
+.rank-badge.top5{color:var(–accent1)}.rank-badge.top15{color:var(–accent2)}
+.player-name{font-weight:600;font-size:13px}
+.pos-badge{font-family:‘Barlow Condensed’,sans-serif;font-weight:700;font-size:11px;letter-spacing:.5px;padding:2px 5px;border-radius:3px;display:inline-block}
+.pos-QB{background:rgba(79,142,247,.18);color:#4f8ef7}.pos-RB{background:rgba(62,207,110,.18);color:#3ecf6e}
+.pos-WR{background:rgba(245,200,66,.18);color:#f5c842}.pos-TE{background:rgba(232,72,85,.18);color:#e84855}
+.pos-PK{background:rgba(180,180,180,.18);color:#b0b8cc}
+.pos-DE,.pos-DT{background:rgba(196,122,245,.18);color:#c47af5}
+.pos-LB{background:rgba(245,166,35,.18);color:#f5a623}
+.pos-CB,.pos-S{background:rgba(100,200,220,.18);color:#64c8dc}
+.tier-label{font-family:‘Barlow Condensed’,sans-serif;font-size:10px;letter-spacing:1px;text-transform:uppercase;padding:2px 5px;border-radius:3px}
+.tier-1{background:rgba(245,200,66,.15);color:var(–accent1);border:1px solid rgba(245,200,66,.3)}
+.tier-2{background:rgba(79,142,247,.15);color:var(–accent2);border:1px solid rgba(79,142,247,.3)}
+.tier-3{background:rgba(62,207,110,.12);color:#3ecf6e;border:1px solid rgba(62,207,110,.25)}
+.tier-4{background:rgba(100,100,130,.15);color:var(–muted);border:1px solid rgba(100,100,130,.3)}
+.draft-btn{font-family:‘Barlow Condensed’,sans-serif;font-weight:700;letter-spacing:1px;font-size:12px;padding:3px 9px;border-radius:4px;border:1px solid var(–border);background:var(–surface2);color:var(–text);cursor:pointer;transition:all .15s}
+.draft-btn:hover{background:var(–accent1);color:#000;border-color:var(–accent1)}
+.tag-injury{background:rgba(232,72,85,.2);color:var(–accent3);font-size:9px;padding:1px 4px;border-radius:2px;margin-left:3px}
+.tag-fa{background:rgba(100,100,130,.2);color:var(–muted);font-size:9px;padding:1px 4px;border-radius:2px;margin-left:3px}
+.scrollable-table{max-height:560px;overflow-y:auto}
+
+.sidebar{display:flex;flex-direction:column;gap:12px}
+.draft-log,.picks-panel{background:var(–surface);border:1px solid var(–border);border-radius:10px;overflow:hidden}
+.draft-log-header,.picks-header{background:var(–surface2);padding:9px 13px;font-family:‘Bebas Neue’,sans-serif;font-size:16px;letter-spacing:2px;color:var(–accent1);display:flex;align-items:center;justify-content:space-between}
+.log-list{max-height:340px;overflow-y:auto}
+.log-entry{display:flex;align-items:center;gap:8px;padding:8px 11px;border-bottom:1px solid rgba(42,48,80,.5);animation:slideIn .3s ease}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+.log-pick-num{font-family:‘Bebas Neue’,sans-serif;font-size:17px;color:var(–muted);min-width:26px}
+.log-team-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.log-player{font-weight:600;font-size:12px}
+.log-pos{font-size:10px;color:var(–muted)}
+.log-team-label{font-family:‘Barlow Condensed’,sans-serif;font-size:11px;letter-spacing:.5px;margin-left:auto}
+.empty-log{padding:16px;text-align:center;color:var(–muted);font-size:12px}
+.picks-grid{padding:9px;display:flex;flex-direction:column;gap:4px;max-height:300px;overflow-y:auto}
+.pick-slot{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:5px;border:1px solid var(–border);background:var(–surface2);font-size:11px}
+.pick-slot.on-clock{border-color:var(–accent1);background:rgba(245,200,66,.08);animation:glow 1.5s infinite}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(245,200,66,0)}50%{box-shadow:0 0 8px 2px rgba(245,200,66,.2)}}
+.pick-slot.done{opacity:.38}
+.pick-round{font-family:‘Barlow Condensed’,sans-serif;font-weight:700;font-size:11px;color:var(–muted);min-width:26px}
+.pick-result{font-size:10px;color:var(–muted);margin-left:auto;font-style:italic;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pick-trade-tag{font-size:9px;padding:1px 4px;border-radius:2px;background:rgba(79,142,247,.2);color:var(–accent2)}
+
+.team-header{display:flex;align-items:center;gap:13px;margin-bottom:16px;padding:16px;border-radius:12px}
+.team-icon{font-size:36px}
+.team-info h2{font-family:‘Bebas Neue’,sans-serif;font-size:28px;letter-spacing:3px}
+.team-meta{font-size:13px;color:var(–muted);margin-top:3px}
+.needs-bar{display:flex;gap:6px;flex-wrap:wrap;margin-top:7px}
+.need-chip{font-family:‘Barlow Condensed’,sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;padding:3px 8px;border-radius:20px;display:flex;align-items:center;gap:4px}
+.need-chip.filled{opacity:.32;text-decoration:line-through}
+.need-dot{width:6px;height:6px;border-radius:50%}
+.roster-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;margin-top:12px}
+.roster-slot{background:var(–surface);border:1px solid var(–border);border-radius:8px;padding:9px 11px;display:flex;align-items:center;gap:8px}
+.roster-slot.empty{border-style:dashed;opacity:.42}
+.slot-pos{font-family:‘Barlow Condensed’,sans-serif;font-weight:700;font-size:11px;letter-spacing:1px;min-width:38px;text-align:center}
+.slot-player{font-weight:600;font-size:13px}
+.slot-meta{font-size:11px;color:var(–muted)}
+
+.picks-page{padding:2px}
+.draft-order-display,.trade-log-section{background:var(–surface);border:1px solid var(–border);border-radius:10px;overflow:hidden;margin-bottom:16px}
+.draft-order-header,.trade-log-header{background:var(–surface2);padding:11px 15px;font-family:‘Bebas Neue’,sans-serif;font-size:16px;letter-spacing:2px;display:flex;align-items:center;justify-content:space-between}
+.draft-order-header{color:var(–accent1)}.trade-log-header{color:var(–accent2)}
+.order-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:1px;background:var(–border)}
+.order-round{background:var(–surface);padding:9px 12px}
+.order-round-label{font-family:‘Barlow Condensed’,sans-serif;font-size:11px;font-weight:700;letter-spacing:1.5px;color:var(–muted);text-transform:uppercase;margin-bottom:5px}
+.order-picks{display:flex;flex-direction:column;gap:3px}
+.order-pick{display:flex;align-items:center;gap:6px;font-size:11px;padding:2px 0}
+.order-pick-num{font-family:‘Barlow Condensed’,sans-serif;font-weight:700;font-size:12px;color:var(–muted);min-width:22px}
+.trade-log-list{padding:10px;display:flex;flex-direction:column;gap:7px}
+.trade-entry{background:var(–surface2);border:1px solid rgba(79,142,247,.3);border-radius:7px;padding:9px 12px}
+.trade-entry-title{font-weight:700;font-size:11px;color:var(–accent2);font-family:‘Barlow Condensed’,sans-serif;letter-spacing:1px;margin-bottom:4px}
+.trade-entry-detail{font-size:12px;color:var(–muted)}
+.empty-trades{padding:16px;text-align:center;color:var(–muted);font-size:13px}
+
+.discord-bar{background:rgba(88,101,242,.12);border:1px solid rgba(88,101,242,.35);border-radius:7px;padding:8px 13px;margin-bottom:12px;display:flex;align-items:center;gap:8px;font-size:12px}
+.discord-bar code{background:rgba(88,101,242,.25);padding:1px 5px;border-radius:3px;font-size:11px}
+.order-warning{background:rgba(245,200,66,.1);border:1px solid rgba(245,200,66,.4);border-radius:7px;padding:9px 13px;margin-bottom:12px;font-size:12px;display:flex;align-items:center;gap:8px}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;align-items:center;justify-content:center;padding:14px}
+.modal-overlay.open{display:flex}
+.modal{background:var(–surface);border:1px solid var(–border);border-radius:14px;padding:24px;max-width:480px;width:100%;animation:modalIn .2s ease;max-height:90vh;overflow-y:auto}
+.modal.wide{max-width:620px}
+@keyframes modalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+.modal h3{font-family:‘Bebas Neue’,sans-serif;font-size:21px;letter-spacing:2px;margin-bottom:4px}
+.modal-meta{color:var(–muted);font-size:12px;margin-bottom:16px}
+.modal-label{font-size:11px;font-weight:600;color:var(–muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
+.modal-section{margin-bottom:16px}
+.team-select-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.team-select-btn{padding:12px;border-radius:8px;border:2px solid var(–border);background:var(–surface2);cursor:pointer;font-family:‘Barlow Condensed’,sans-serif;font-weight:700;font-size:14px;letter-spacing:1px;transition:all .15s;text-align:center}
+.team-select-btn:hover{transform:translateY(-2px)}
+.team-select-btn.t1{color:var(–t1)}.team-select-btn.t1:hover,.team-select-btn.t1.sel{border-color:var(–t1);background:rgba(126,207,184,.1)}
+.team-select-btn.t2{color:var(–t2)}.team-select-btn.t2:hover,.team-select-btn.t2.sel{border-color:var(–t2);background:rgba(245,166,35,.1)}
+.team-select-btn.t3{color:var(–t3)}.team-select-btn.t3:hover,.team-select-btn.t3.sel{border-color:var(–t3);background:rgba(196,122,245,.1)}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.btn{font-family:‘Barlow Condensed’,sans-serif;font-weight:700;letter-spacing:1.5px;font-size:13px;padding:8px 16px;border-radius:6px;border:none;cursor:pointer;transition:all .15s}
+.btn-primary{background:var(–accent1);color:#000}.btn-primary:hover{background:#ffd84d}.btn-primary:disabled{opacity:.35;cursor:not-allowed}
+.btn-blue{background:var(–accent2);color:#fff}.btn-blue:hover{background:#6da0ff}
+.btn-ghost{background:var(–surface2);color:var(–text);border:1px solid var(–border)}.btn-ghost:hover{border-color:var(–text)}
+
+.order-slots{display:flex;flex-direction:column;gap:7px;margin-bottom:12px}
+.order-slot-row{display:flex;align-items:center;gap:9px}
+.order-slot-label{font-family:‘Barlow Condensed’,sans-serif;font-weight:700;font-size:13px;letter-spacing:1px;color:var(–muted);min-width:65px}
+.order-select{background:var(–surface2);border:1px solid var(–border);border-radius:6px;padding:6px 9px;color:var(–text);font-family:‘Barlow’,sans-serif;font-size:13px;cursor:pointer;flex:1}
+.order-select:focus{outline:none;border-color:var(–accent1)}
+.snake-preview{background:var(–surface2);border:1px solid var(–border);border-radius:7px;padding:11px 13px;font-size:12px}
+.snake-preview-title{font-family:‘Barlow Condensed’,sans-serif;font-size:11px;letter-spacing:1px;color:var(–muted);text-transform:uppercase;margin-bottom:7px}
+.snake-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:4px;align-items:center}
+.snake-row-label{font-size:11px;color:var(–muted);min-width:44px;font-family:‘Barlow Condensed’,sans-serif;letter-spacing:.5px}
+.snake-pip{font-size:11px;padding:2px 7px;border-radius:3px;font-family:‘Barlow Condensed’,sans-serif;font-weight:700;letter-spacing:.5px}
+
+.trade-panel{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.trade-side{background:var(–surface2);border:1px solid var(–border);border-radius:8px;padding:11px}
+.trade-side-title{font-family:‘Barlow Condensed’,sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;margin-bottom:7px}
+.trade-owner-sel{background:var(–bg);border:1px solid var(–border);border-radius:5px;padding:5px 8px;color:var(–text);font-family:‘Barlow’,sans-serif;font-size:12px;width:100%;margin-bottom:7px;cursor:pointer}
+.trade-picks-list{display:flex;flex-direction:column;gap:4px;max-height:190px;overflow-y:auto}
+.trade-pick-item{display:flex;align-items:center;gap:6px;padding:4px 7px;border-radius:5px;border:1px solid var(–border);background:var(–bg);cursor:pointer;font-size:11px;transition:all .12s}
+.trade-pick-item:hover{border-color:var(–accent2)}
+.trade-pick-item.selected{border-color:var(–accent2);background:rgba(79,142,247,.1)}
+.trade-summary{background:var(–surface2);border:1px solid var(–border);border-radius:7px;padding:9px 12px;font-size:12px;color:var(–muted);min-height:38px;line-height:1.5}
+
+.status-toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(80px);background:var(–surface2);border:1px solid var(–accent1);color:var(–text);padding:9px 20px;border-radius:8px;font-weight:600;font-size:13px;transition:transform .3s ease;z-index:999;white-space:nowrap;pointer-events:none}
+.status-toast.show{transform:translateX(-50%) translateY(0)}
+select option{background:#1e2333}
+</style>
+
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">DFFL <span>Draft Board</span></div>
+  <div class="header-right">
+    <div class="pick-indicator">
+      <div class="pick-dot" id="clockDot"></div>
+      <div class="pick-label" id="clockLabel">SET ORDER</div>
+    </div>
+    <span class="pick-counter" id="pickCounter"></span>
+    <button class="hdr-btn settings" onclick="openSettings()">⚙ Order</button>
+    <button class="hdr-btn trade" onclick="openTradeModal()">⇄ Trade</button>
+    <button class="hdr-btn undo" onclick="undoPick()">↩ Undo</button>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="showPanel('board',this)">📋 Draft Board</button>
+  <button class="tab team1" onclick="showPanel('team1',this)">🟩 Kith</button>
+  <button class="tab team2" onclick="showPanel('team2',this)">🟧 Nate</button>
+  <button class="tab team3" onclick="showPanel('team3',this)">🟪 Victor</button>
+  <button class="tab" onclick="showPanel('picks',this)">🎯 Picks &amp; Trades</button>
+</div>
+
+<div class="content">
+<div id="panel-board" class="panel active">
+  <div id="orderWarning" class="order-warning" style="display:none">
+    ⚠️ <strong>Draft order not set.</strong>&nbsp; Click <strong>⚙ Order</strong> in the header to lock in the pick order before drafting.
+  </div>
+  <div class="discord-bar">💬 Discord pick format: <code>!pick [Player Name]</code> — Commissioner logs it here in real time.</div>
+  <div class="board-grid">
+    <div>
+      <div class="board-header">
+        <div class="section-title">Available Players</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <input class="search-box" id="searchBox" placeholder="🔍 Search player..." oninput="renderPlayerTable()">
+          <div class="filters">
+            <button class="filter-btn active" onclick="setPosFilter('ALL',this)">ALL</button>
+            <button class="filter-btn" onclick="setPosFilter('QB',this)">QB</button>
+            <button class="filter-btn" onclick="setPosFilter('RB',this)">RB</button>
+            <button class="filter-btn" onclick="setPosFilter('WR',this)">WR</button>
+            <button class="filter-btn" onclick="setPosFilter('TE',this)">TE</button>
+            <button class="filter-btn" onclick="setPosFilter('PK',this)">K</button>
+            <button class="filter-btn" onclick="setPosFilter('DEF',this)">DEF</button>
+          </div>
+        </div>
+      </div>
+      <div class="scrollable-table">
+        <table class="player-table">
+          <thead><tr><th>#</th><th>Player</th><th>Pos</th><th>NFL</th><th>Tier</th><th>Notes</th><th></th></tr></thead>
+          <tbody id="playerTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="sidebar">
+      <div class="draft-log">
+        <div class="draft-log-header">Draft Log <span style="font-size:11px;font-weight:400;color:var(--muted)" id="draftedCount">0 drafted</span></div>
+        <div class="log-list" id="logList"><div class="empty-log">No picks yet — draft is live!</div></div>
+      </div>
+      <div class="picks-panel">
+        <div class="picks-header">Pick Order</div>
+        <div class="picks-grid" id="pickOrderList"><div class="empty-log">Set draft order first.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="panel-team1" class="panel"></div>
+<div id="panel-team2" class="panel"></div>
+<div id="panel-team3" class="panel"></div>
+<div id="panel-picks" class="panel">
+  <div class="picks-page">
+    <div class="draft-order-display">
+      <div class="draft-order-header">Full Draft Order <span style="font-size:11px;font-weight:400;color:var(--muted)" id="orderStatus">— not set</span></div>
+      <div class="order-grid" id="fullOrderGrid"><div style="padding:14px;color:var(--muted);font-size:13px">Set draft order via ⚙ Order in the header.</div></div>
+    </div>
+    <div class="trade-log-section">
+      <div class="trade-log-header">Trade Log</div>
+      <div id="tradeLogList"><div class="empty-trades">No trades recorded yet.</div></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- DRAFT MODAL -->
+
+<div class="modal-overlay" id="draftModal">
+  <div class="modal">
+    <h3 id="modalPlayerName">Player Name</h3>
+    <div class="modal-meta" id="modalPlayerMeta"></div>
+    <div class="modal-label">Assign to Team</div>
+    <div class="team-select-grid" style="margin-bottom:18px">
+      <button class="team-select-btn t1" onclick="selectTeam(1)">🟩<br>Kith</button>
+      <button class="team-select-btn t2" onclick="selectTeam(2)">🟧<br>Nate</button>
+      <button class="team-select-btn t3" onclick="selectTeam(3)">🟪<br>Victor</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('draftModal')">Cancel</button>
+      <button class="btn btn-primary" id="confirmDraftBtn" onclick="confirmDraft()" disabled>Confirm Pick</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS MODAL -->
+
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h3 style="color:var(--accent1)">⚙ Draft Order Settings</h3>
+    <div class="modal-meta">Set the Round 1 order. The snake auto-generates all remaining rounds.</div>
+    <div class="modal-section">
+      <div class="modal-label">Round 1 Pick Order</div>
+      <div class="order-slots">
+        <div class="order-slot-row">
+          <span class="order-slot-label">1st Pick</span>
+          <select class="order-select" id="slot1" onchange="updateSnakePreview()">
+            <option value="">— owner —</option>
+            <option value="1">🟩 Kith</option><option value="2">🟧 Nate</option><option value="3">🟪 Victor</option>
+          </select>
+        </div>
+        <div class="order-slot-row">
+          <span class="order-slot-label">2nd Pick</span>
+          <select class="order-select" id="slot2" onchange="updateSnakePreview()">
+            <option value="">— owner —</option>
+            <option value="1">🟩 Kith</option><option value="2">🟧 Nate</option><option value="3">🟪 Victor</option>
+          </select>
+        </div>
+        <div class="order-slot-row">
+          <span class="order-slot-label">3rd Pick</span>
+          <select class="order-select" id="slot3" onchange="updateSnakePreview()">
+            <option value="">— owner —</option>
+            <option value="1">🟩 Kith</option><option value="2">🟧 Nate</option><option value="3">🟪 Victor</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-section">
+      <div class="modal-label">Snake Preview (first 4 rounds)</div>
+      <div class="snake-preview" id="snakePreview">Select all 3 owners above to preview.</div>
+    </div>
+    <div id="settingsWarning" style="color:var(--accent3);font-size:12px;margin-bottom:8px;display:none"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('settingsModal')">Cancel</button>
+      <button class="btn btn-primary" id="confirmOrderBtn" onclick="confirmOrder()" disabled>Lock In Order</button>
+    </div>
+  </div>
+</div>
+
+<!-- TRADE MODAL -->
+
+<div class="modal-overlay" id="tradeModal">
+  <div class="modal wide">
+    <h3 style="color:var(--accent2)">⇄ Record a Trade</h3>
+    <div class="modal-meta">Select the picks being swapped. Multiple picks can be selected per side.</div>
+    <div class="trade-panel">
+      <div class="trade-side">
+        <div class="trade-side-title" style="color:var(--accent2)">SIDE A — Gives Away</div>
+        <select class="trade-owner-sel" id="tradeOwnerA" onchange="renderTradePicks('A')">
+          <option value="">— select owner —</option>
+          <option value="1">🟩 Kith</option><option value="2">🟧 Nate</option><option value="3">🟪 Victor</option>
+        </select>
+        <div class="trade-picks-list" id="tradePicksA"><div style="color:var(--muted);font-size:11px;padding:3px">Select owner to see picks</div></div>
+      </div>
+      <div class="trade-side">
+        <div class="trade-side-title" style="color:var(--accent2)">SIDE B — Gives Away</div>
+        <select class="trade-owner-sel" id="tradeOwnerB" onchange="renderTradePicks('B')">
+          <option value="">— select owner —</option>
+          <option value="1">🟩 Kith</option><option value="2">🟧 Nate</option><option value="3">🟪 Victor</option>
+        </select>
+        <div class="trade-picks-list" id="tradePicksB"><div style="color:var(--muted);font-size:11px;padding:3px">Select owner to see picks</div></div>
+      </div>
+    </div>
+    <div class="modal-label">Trade Summary</div>
+    <div class="trade-summary" id="tradeSummary">No picks selected yet.</div>
+    <div id="tradeWarning" style="color:var(--accent3);font-size:12px;margin-top:7px;display:none"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('tradeModal')">Cancel</button>
+      <button class="btn btn-blue" onclick="confirmTrade()">Record Trade</button>
+    </div>
+  </div>
+</div>
+
+<div class="status-toast" id="toast"></div>
+
+<script>
+const TEAMS={
+  1:{name:'Kith',  emoji:'🟩',hex:'#7ecfb8',rgb:'126,207,184',cssVar:'var(--t1)'},
+  2:{name:'Nate',  emoji:'🟧',hex:'#f5a623',rgb:'245,166,35', cssVar:'var(--t2)'},
+  3:{name:'Victor',emoji:'🟪',hex:'#c47af5',rgb:'196,122,245',cssVar:'var(--t3)'},
+};
+const TIER_LABELS={1:'⭐ Tier 1',2:'Tier 2',3:'Tier 3',4:'Tier 4'};
+const PPT=40,NT=3,TOTAL=PPT*NT; // picks per team, num teams, total picks
+const DL=['DE','DT'],LB=['LB'],DB=['CB','S'],DEF_ALL=['DE','DT','LB','CB','S'],OFF_FLEX=['RB','WR','TE'];
+const isDEF=p=>DEF_ALL.includes(p),isDL=p=>DL.includes(p),isLB=p=>LB.includes(p),isDB=p=>DB.includes(p),isFlex=p=>OFF_FLEX.includes(p);
+
+const PLAYERS_RAW=[
+  {name:'Josh Allen',nfl:'BUF',pos:'QB',tier:1,notes:'Elite fantasy anchor'},
+  {name:'Justin Herbert',nfl:'LAC',pos:'QB',tier:1,notes:'Upside QB1'},
+  {name:'Jared Goff',nfl:'DET',pos:'QB',tier:2,notes:'Consistent volume passer'},
+  {name:'Anthony Richardson',nfl:'IND',pos:'QB',tier:2,notes:'Massive rushing upside'},
+  {name:'Bryce Young',nfl:'CAR',pos:'QB',tier:2,notes:'Developing starter'},
+  {name:'Dillon Gabriel',nfl:'CLE',pos:'QB',tier:3,notes:'Rookie — watch development'},
+  {name:'Jaxson Dart',nfl:'NYG',pos:'QB',tier:3,notes:'Rookie potential'},
+  {name:'Andy Dalton',nfl:'PHI',pos:'QB',tier:4,notes:'Backup / streaming'},
+  {name:"De'Von Achane",nfl:'MIA',pos:'RB',tier:1,notes:'Explosive speed threat'},
+  {name:'Derrick Henry',nfl:'BAL',pos:'RB',tier:1,notes:'Bellcow workhorse'},
+  {name:'Bucky Irving',nfl:'TBB',pos:'RB',tier:2,notes:'Emerging starter'},
+  {name:'Rhamondre Stevenson',nfl:'NEP',pos:'RB',tier:2,notes:'3-down back'},
+  {name:'Kareem Hunt',nfl:'KCC',pos:'RB',tier:2,notes:'Proven vet role'},
+  {name:'Cam Skattebo',nfl:'NYG',pos:'RB',tier:2,notes:'Rookie — high upside'},
+  {name:'Chuba Hubbard',nfl:'CAR',pos:'RB',tier:2,notes:'Volume carrier'},
+  {name:'Aaron Jones',nfl:'MIN',pos:'RB',tier:3,notes:'PPR value'},
+  {name:'Will Shipley',nfl:'PHI',pos:'RB',tier:3,notes:'Change of pace'},
+  {name:'Blake Corum',nfl:'LAR',pos:'RB',tier:3,notes:'Rotational back'},
+  {name:'James Cook',nfl:'BUF',pos:'RB',tier:2,notes:'Explosive role player'},
+  {name:'Sean Tucker',nfl:'TBB',pos:'RB',tier:3,notes:'Committee back'},
+  {name:'Phil Mafah',nfl:'DAL',pos:'RB',tier:3,notes:'Young depth piece'},
+  {name:'Keaton Mitchell',nfl:'LAC',pos:'RB',tier:3,notes:'Recovering — monitor'},
+  {name:'Ollie Gordon',nfl:'MIA',pos:'RB',tier:3,notes:'Depth/handcuff'},
+  {name:'Jaleel McLaughlin',nfl:'DEN',pos:'RB',tier:4,notes:'Rotational role'},
+  {name:'Dylan Sampson',nfl:'CLE',pos:'RB',tier:4,notes:'Rookie flier'},
+  {name:'Miles Sanders',nfl:'DAL',pos:'RB',tier:4,notes:'Questionable status',injury:true},
+  {name:'Zack Moss',nfl:'FA',pos:'RB',tier:4,notes:'Free agent',fa:true},
+  {name:'Ezekiel Elliott',nfl:'FA',pos:'RB',tier:4,notes:'Veteran depth',fa:true},
+  {name:'Kenny McIntosh',nfl:'SEA',pos:'RB',tier:4,notes:'Practice squad'},
+  {name:'Kyle Juszczyk',nfl:'SFO',pos:'RB',tier:4,notes:'FB — dynasty handoff'},
+  {name:'Jaylen Waddle',nfl:'DEN',pos:'WR',tier:1,notes:'Elite route runner'},
+  {name:'Terry McLaurin',nfl:'WAS',pos:'WR',tier:1,notes:'Reliable WR1'},
+  {name:'Keenan Allen',nfl:'LAC',pos:'WR',tier:2,notes:'Route tech vet'},
+  {name:'Zay Flowers',nfl:'BAL',pos:'WR',tier:2,notes:'Lamar connection'},
+  {name:'Calvin Ridley',nfl:'TEN',pos:'WR',tier:2,notes:'Proven receiver'},
+  {name:'Jameson Williams',nfl:'DET',pos:'WR',tier:2,notes:'Speed threat'},
+  {name:'Tyreek Hill',nfl:'MIA',pos:'WR',tier:1,notes:'All-time speed — age concern'},
+  {name:'Van Jefferson',nfl:'WAS',pos:'WR',tier:3,notes:'Deep threat'},
+  {name:'Jordan Whittington',nfl:'LAR',pos:'WR',tier:3,notes:'Slot presence'},
+  {name:'Rashid Shaheed',nfl:'SEA',pos:'WR',tier:3,notes:'Big play ability'},
+  {name:'Diontae Johnson',nfl:'FA',pos:'WR',tier:3,notes:'Free agent value',fa:true},
+  {name:'Charlie Jones',nfl:'CIN',pos:'WR',tier:3,notes:'PPR target hog'},
+  {name:'KaVontae Turpin',nfl:'DAL',pos:'WR',tier:3,notes:'Gadget/returner'},
+  {name:'Elic Ayomanor',nfl:'TEN',pos:'WR',tier:3,notes:'Young talent'},
+  {name:'Stefon Diggs',nfl:'FA',pos:'WR',tier:2,notes:'Veteran — landing spot key',fa:true},
+  {name:'Kameron Johnson',nfl:'TBB',pos:'WR',tier:4,notes:'Developmental'},
+  {name:'Tutu Atwell',nfl:'MIA',pos:'WR',tier:4,notes:'Gadget WR'},
+  {name:'Luke McCaffrey',nfl:'WAS',pos:'WR',tier:3,notes:'Unique toolkit'},
+  {name:'Tyler Johnson',nfl:'DAL',pos:'WR',tier:4,notes:'Depth piece'},
+  {name:'Allen Lazard',nfl:'FA',pos:'WR',tier:4,notes:'Veteran depth',fa:true},
+  {name:'Adam Thielen',nfl:'FA',pos:'WR',tier:4,notes:'Aging vet',fa:true},
+  {name:'Jonathan Mingo',nfl:'DAL',pos:'WR',tier:3,notes:'Breakout candidate'},
+  {name:'Jalen Nailor',nfl:'LVR',pos:'WR',tier:3,notes:'Speed slot'},
+  {name:"Dont'e Thornton",nfl:'LVR',pos:'WR',tier:4,notes:'Deep threat'},
+  {name:'Brenden Rice',nfl:'LVR',pos:'WR',tier:4,notes:"John's son — pedigree"},
+  {name:'Kalif Raymond',nfl:'CHI',pos:'WR',tier:4,notes:'Returner value'},
+  {name:'Josh Reynolds',nfl:'NYJ',pos:'WR',tier:4,notes:'Depth'},
+  {name:'Hunter Renfrow',nfl:'FA',pos:'WR',tier:4,notes:'Veteran free agent',fa:true},
+  {name:'John Metchie',nfl:'CAR',pos:'WR',tier:4,notes:'Development player'},
+  {name:'Jacob Cowing',nfl:'SFO',pos:'WR',tier:4,notes:'Depth WR'},
+  {name:'Ray-Ray McCloud',nfl:'NYG',pos:'WR',tier:4,notes:'Returner/depth'},
+  {name:'Efton Chism',nfl:'NEP',pos:'WR',tier:4,notes:'Camp standout'},
+  {name:'Dalton Kincaid',nfl:'BUF',pos:'TE',tier:2,notes:'Josh Allen connection'},
+  {name:'Tyler Higbee',nfl:'LAR',pos:'TE',tier:2,notes:'Target hog TE'},
+  {name:'Zach Ertz',nfl:'WAS',pos:'TE',tier:2,notes:'Veteran safety valve'},
+  {name:'Mike Gesicki',nfl:'CIN',pos:'TE',tier:3,notes:'Slot-mismatch TE'},
+  {name:'Colby Parkinson',nfl:'LAR',pos:'TE',tier:3,notes:'Upside TE2'},
+  {name:'Luke Schoonmaker',nfl:'DAL',pos:'TE',tier:3,notes:'Growing role'},
+  {name:'Daniel Bellinger',nfl:'TEN',pos:'TE',tier:3,notes:'Young development'},
+  {name:'Josh Oliver',nfl:'MIN',pos:'TE',tier:4,notes:'Blocking TE'},
+  {name:'Jonnu Smith',nfl:'FA',pos:'TE',tier:3,notes:'Proven TE2',fa:true},
+  {name:'Hunter Long',nfl:'JAC',pos:'TE',tier:4,notes:'Depth TE'},
+  {name:'Luke Musgrave',nfl:'GBP',pos:'TE',tier:3,notes:'Big upside — health key'},
+  {name:'Jake Tonges',nfl:'SFO',pos:'TE',tier:4,notes:'Roster stash'},
+  {name:'Luke Farrell',nfl:'SFO',pos:'TE',tier:4,notes:'Blocking specialist'},
+  {name:'Tanner Hudson',nfl:'CIN',pos:'TE',tier:4,notes:'Depth'},
+  {name:'Brenton Strange',nfl:'JAC',pos:'TE',tier:4,notes:'TE development'},
+  {name:'Tanner McLachlan',nfl:'LAC',pos:'TE',tier:4,notes:'Depth TE'},
+  {name:'Chase McLaughlin',nfl:'TBB',pos:'PK',tier:2,notes:'Accurate kicker'},
+  {name:'Brandon McManus',nfl:'GBP',pos:'PK',tier:2,notes:'High-volume offense'},
+  {name:'Nick Folk',nfl:'ATL',pos:'PK',tier:3,notes:'Reliable vet'},
+  {name:'Will Reichard',nfl:'MIN',pos:'PK',tier:2,notes:'Rookie standout'},
+  {name:'Tyler Loop',nfl:'BAL',pos:'PK',tier:3,notes:'Great offense behind him'},
+  {name:'George Karlaftis',nfl:'KCC',pos:'DE',tier:2,notes:'Pass rush upside'},
+  {name:'Lukas Van Ness',nfl:'GBP',pos:'DE',tier:2,notes:'Breakout candidate'},
+  {name:'Kwity Paye',nfl:'LVR',pos:'DE',tier:2,notes:'Athletic edge rusher'},
+  {name:'Demarcus Lawrence',nfl:'SEA',pos:'DE',tier:3,notes:'Veteran presence'},
+  {name:'Montez Sweat',nfl:'CHI',pos:'DE',tier:2,notes:'Elite speed'},
+  {name:'Jadeveon Clowney',nfl:'DAL',pos:'DE',tier:3,notes:'Veteran pass rusher'},
+  {name:'Arden Key',nfl:'IND',pos:'DE',tier:3,notes:'Rotational rusher'},
+  {name:'Javon Solomon',nfl:'BUF',pos:'DE',tier:3,notes:'Young edge'},
+  {name:'Andrew Van Ginkel',nfl:'MIN',pos:'DE',tier:3,notes:'Hybrid edge/LB'},
+  {name:'Alex Wright',nfl:'CLE',pos:'DE',tier:3,notes:'Growing role'},
+  {name:'D.J. Wonnum',nfl:'DET',pos:'DE',tier:3,notes:'Rotational end'},
+  {name:'Cameron Jordan',nfl:'NOS',pos:'DE',tier:3,notes:'Aging but effective'},
+  {name:'Jermaine Johnson',nfl:'TEN',pos:'DE',tier:3,notes:'Development rusher'},
+  {name:'Dondrea Tillman',nfl:'DEN',pos:'DE',tier:4,notes:'Depth DE'},
+  {name:'Gervon Dexter',nfl:'CHI',pos:'DT',tier:2,notes:'Disruptive interior'},
+  {name:'Christian Barmore',nfl:'NEP',pos:'DT',tier:2,notes:'Health key — elite upside'},
+  {name:'Calais Campbell',nfl:'BAL',pos:'DT',tier:3,notes:'Veteran leader'},
+  {name:'B.J. Hill',nfl:'CIN',pos:'DT',tier:3,notes:'Consistent interior'},
+  {name:'Levi Onwuzurike',nfl:'DET',pos:'DT',tier:3,notes:'Recovery season'},
+  {name:"A'Shawn Robinson",nfl:'TBB',pos:'DT',tier:3,notes:'Run stuffing role'},
+  {name:'Leonard Williams',nfl:'SEA',pos:'DT',tier:2,notes:'Consistent disruptor'},
+  {name:'Milton Williams',nfl:'NEP',pos:'DT',tier:3,notes:'Rotational tackle'},
+  {name:'Zach Allen',nfl:'DEN',pos:'DT',tier:3,notes:'Interior depth'},
+  {name:'Bobby Wagner',nfl:'WAS',pos:'LB',tier:2,notes:'Elite tackle production'},
+  {name:'Nate Landman',nfl:'LAR',pos:'LB',tier:2,notes:'Growing role'},
+  {name:'Cole Holcomb',nfl:'PIT',pos:'LB',tier:3,notes:'Three-down LB'},
+  {name:'Oren Burks',nfl:'CIN',pos:'LB',tier:3,notes:'Special teams + starts'},
+  {name:'JD Bertrand',nfl:'ATL',pos:'LB',tier:2,notes:'Breakout season incoming'},
+  {name:'Devin Lloyd',nfl:'CAR',pos:'LB',tier:2,notes:'Coverage linebacker'},
+  {name:'Kyzir White',nfl:'SFO',pos:'LB',tier:3,notes:'Tackle machine'},
+  {name:'Jack Gibbens',nfl:'ARI',pos:'LB',tier:3,notes:'Every-down role'},
+  {name:'Demario Davis',nfl:'NYJ',pos:'LB',tier:3,notes:'Veteran leader'},
+  {name:'Jerome Baker',nfl:'CLE',pos:'LB',tier:3,notes:'Starting role'},
+  {name:'Isaiah McDuffie',nfl:'GBP',pos:'LB',tier:3,notes:'Special teams + role'},
+  {name:'Alex Anzalone',nfl:'TBB',pos:'LB',tier:4,notes:'Backup role'},
+  {name:'Marist Liufau',nfl:'DAL',pos:'LB',tier:4,notes:'Developmental'},
+  {name:'Jordan Magee',nfl:'WAS',pos:'LB',tier:4,notes:'Depth backer'},
+  {name:'Danny Stutsman',nfl:'NOS',pos:'LB',tier:3,notes:'Rookie with upside'},
+  {name:'Jack Sanborn',nfl:'CHI',pos:'LB',tier:3,notes:'Starting role'},
+  {name:'Cody Barton',nfl:'TEN',pos:'LB',tier:4,notes:'Veteran depth'},
+  {name:'Christian Harris',nfl:'ATL',pos:'LB',tier:3,notes:'Physical presence'},
+  {name:'Ernest Jones',nfl:'SEA',pos:'LB',tier:3,notes:'Run stopper'},
+  {name:'Denzel Perryman',nfl:'LAC',pos:'LB',tier:4,notes:'Veteran backup'},
+  {name:'Troy Dye',nfl:'LAC',pos:'LB',tier:4,notes:'Depth'},
+  {name:'Logan Wilson',nfl:'FA',pos:'LB',tier:3,notes:'Free agent',fa:true},
+  {name:'Patrick Surtain II',nfl:'DEN',pos:'CB',tier:1,notes:'Elite CB1'},
+  {name:'Derek Stingley Jr.',nfl:'HOU',pos:'CB',tier:1,notes:'Shutdown corner'},
+  {name:'Cooper DeJean',nfl:'PHI',pos:'CB',tier:2,notes:'Versatile and young'},
+  {name:'Jaire Alexander',nfl:'PHI',pos:'CB',tier:2,notes:'Health-dependent CB1'},
+  {name:'Jaylon Jones',nfl:'IND',pos:'CB',tier:3,notes:'Developing corner'},
+  {name:'D.J. Reed',nfl:'DET',pos:'CB',tier:3,notes:'Proven starter'},
+  {name:'Caelen Carson',nfl:'DAL',pos:'CB',tier:3,notes:'Young depth CB'},
+  {name:'Xavier McKinney',nfl:'GBP',pos:'S',tier:1,notes:'Interception machine'},
+  {name:'Jaquan Brisker',nfl:'PIT',pos:'S',tier:2,notes:'Playmaking safety'},
+  {name:'Darnell Savage',nfl:'PIT',pos:'S',tier:2,notes:'Ball hawk'},
+  {name:'Trevon Moehrig',nfl:'CAR',pos:'S',tier:2,notes:'Range coverage'},
+  {name:'Jeremy Reaves',nfl:'WAS',pos:'S',tier:3,notes:'Steady starter'},
+  {name:'Theo Jackson',nfl:'MIN',pos:'S',tier:3,notes:'Growing role'},
+  {name:'Christian Izien',nfl:'DET',pos:'S',tier:3,notes:'Young safety'},
+  {name:'Reed Blankenship',nfl:'HOU',pos:'S',tier:3,notes:'Starting free safety'},
+  {name:'Alohi Gilman',nfl:'KCC',pos:'S',tier:3,notes:'Quality backup'},
+  {name:'Antonio Johnson',nfl:'JAC',pos:'S',tier:3,notes:'Athletic safety'},
+  {name:'Amani Hooker',nfl:'TEN',pos:'S',tier:3,notes:'Veteran starter'},
+  {name:'Rayshawn Jenkins',nfl:'CLE',pos:'S',tier:3,notes:'Deep safety'},
+  {name:'Quentin Lake',nfl:'LAR',pos:'S',tier:3,notes:'Run support safety'},
+  {name:'Ifeatu Melifonwu',nfl:'MIA',pos:'S',tier:4,notes:'Depth safety'},
+  {name:'Xavier Woods',nfl:'FA',pos:'S',tier:3,notes:'Free agent',fa:true},
+  {name:'Taylor Rapp',nfl:'FA',pos:'S',tier:4,notes:'Veteran depth',fa:true},
+];
+
+// ── STATE ──────────────────────────────────────────────────
+let state={
+  draftOrder:null,    // [tid,tid,tid] round-1 order
+  pickOwners:null,    // array[TOTAL] of current owner tids
+  players:PLAYERS_RAW.map((p,i)=>({...p,id:i,drafted:false,draftedBy:null,pickNum:null})),
+  draftLog:[],        // {pickNum,overallIdx,team,name,pos,nfl,id,tier}
+  tradeLog:[],        // {desc,toA,toB,aGave:[],bGave:[]}
+  posFilter:'ALL',
+  selectedTeam:null,
+  pendingPid:null,
+  tradeSelA:new Set(),
+  tradeSelB:new Set(),
+};
+
+// ── SNAKE ──────────────────────────────────────────────────
+function buildPickOwners(order){
+  const owners=[];
+  for(let r=0;r<PPT;r++){
+    const ro=r%2===1?[...order].reverse():[...order];
+    ro.forEach(tid=>owners.push(tid));
+  }
+  return owners;
+}
+function getPickLabel(idx){
+  const r=Math.floor(idx/NT)+1,p=(idx%NT)+1;
+  return `${r}.${String(p).padStart(2,'0')}`;
+}
+function curIdx(){return state.draftLog.length;}
+function curOwner(){return state.pickOwners?state.pickOwners[curIdx()]:null;}
+function pickIsUsed(idx){return state.draftLog.some(e=>e.overallIdx===idx);}
+
+// ── RENDER ALL ─────────────────────────────────────────────
+function renderAll(){
+  renderPlayerTable();
+  renderDraftLog();
+  renderPickOrderSidebar();
+  renderTeamPanels();
+  renderPicksPage();
+  updateClock();
+  document.getElementById('orderWarning').style.display=state.draftOrder?'none':'flex';
+}
+
+function updateClock(){
+  const dot=document.getElementById('clockDot');
+  const lbl=document.getElementById('clockLabel');
+  const ctr=document.getElementById('pickCounter');
+  if(!state.draftOrder){
+    dot.style.background='var(--muted)';lbl.textContent='SET ORDER';lbl.style.color='var(--muted)';ctr.textContent='';return;
+  }
+  const idx=curIdx();
+  if(idx>=TOTAL){
+    dot.style.background='var(--green)';lbl.textContent='DRAFT COMPLETE';lbl.style.color='var(--green)';ctr.textContent='';return;
+  }
+  const t=TEAMS[state.pickOwners[idx]];
+  dot.style.background=t.hex;lbl.textContent=`${t.emoji} ${t.name} · ${getPickLabel(idx)}`;lbl.style.color=t.hex;
+  ctr.textContent=`(#${idx+1} of ${TOTAL})`;
+}
+
+// ── PLAYER TABLE ──────────────────────────────────────────
+function renderPlayerTable(){
+  const search=document.getElementById('searchBox').value.toLowerCase();
+  const pf=state.posFilter;
+  const rows=state.players.filter(p=>{
+    const pm=pf==='ALL'?true:pf==='DEF'?isDEF(p.pos):p.pos===pf;
+    const sm=!search||p.name.toLowerCase().includes(search)||(p.nfl||'').toLowerCase().includes(search);
+    return pm&&sm;
+  });
+  let rank=0;
+  document.getElementById('playerTableBody').innerHTML=rows.map(p=>{
+    rank++;
+    const rc=rank<=5?'top5':rank<=15?'top15':'';
+    const dc=p.drafted
+      ?`<span style="color:${TEAMS[p.draftedBy].hex};font-size:11px">${TEAMS[p.draftedBy].emoji} #${p.pickNum}</span>`
+      :`<button class="draft-btn" onclick="openDraftModal(${p.id})">Draft</button>`;
+    return`<tr class="player-row${p.drafted?' drafted':''}">
+      <td><span class="rank-badge ${rc}">${rank}</span></td>
+      <td><span class="player-name">${p.name}</span>${p.injury?'<span class="tag-injury">Q</span>':''}${p.fa?'<span class="tag-fa">FA</span>':''}</td>
+      <td><span class="pos-badge pos-${p.pos}">${p.pos}</span></td>
+      <td><span style="font-size:11px;color:var(--muted)">${p.nfl||'—'}</span></td>
+      <td><span class="tier-label tier-${p.tier}">${TIER_LABELS[p.tier]}</span></td>
+      <td><span style="font-size:11px;color:var(--muted)">${p.notes||''}</span></td>
+      <td>${dc}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── DRAFT LOG ─────────────────────────────────────────────
+function renderDraftLog(){
+  const n=state.draftLog.length;
+  document.getElementById('draftedCount').textContent=`${n} drafted`;
+  const list=document.getElementById('logList');
+  if(!n){list.innerHTML='<div class="empty-log">No picks yet — draft is live!</div>';return;}
+  list.innerHTML=state.draftLog.slice().reverse().map(e=>{
+    const t=TEAMS[e.team];
+    return`<div class="log-entry">
+      <span class="log-pick-num">${e.pickNum}</span>
+      <span class="log-team-dot" style="background:${t.hex}"></span>
+      <div><div class="log-player">${e.name}</div><div class="log-pos">${e.pos}·${e.nfl||'—'}</div></div>
+      <span class="log-team-label" style="color:${t.hex}">${t.emoji} ${t.name}</span>
+    </div>`;
+  }).join('');
+}
+
+// ── PICK ORDER SIDEBAR ────────────────────────────────────
+function renderPickOrderSidebar(){
+  const list=document.getElementById('pickOrderList');
+  if(!state.pickOwners){list.innerHTML='<div class="empty-log">Set draft order first.</div>';return;}
+  const done=curIdx();
+  const start=Math.max(0,done-1),end=Math.min(TOTAL,done+22);
+  let html='';
+  for(let i=start;i<end;i++){
+    const t=TEAMS[state.pickOwners[i]];
+    const isDone=i<done,onClock=i===done;
+    const le=isDone?state.draftLog.find(e=>e.overallIdx===i):null;
+    const traded=state.tradeLog.some(tr=>[...tr.aGave,...tr.bGave].includes(i));
+    html+=`<div class="pick-slot${isDone?' done':''}${onClock?' on-clock':''}">
+      <span class="pick-round" style="color:${t.hex}">${getPickLabel(i)}</span>
+      <span style="color:${t.hex};font-size:12px;font-weight:600">${t.emoji} ${t.name}</span>
+      ${traded?'<span class="pick-trade-tag">T</span>':''}
+      ${onClock?'<span style="font-size:9px;color:var(--accent1);margin-left:auto">⏱ ON CLOCK</span>':''}
+      ${le?`<span class="pick-result">${le.name}</span>`:''}
+    </div>`;
+  }
+  list.innerHTML=html;
+}
+
+// ── TEAM PANELS ───────────────────────────────────────────
+function renderTeamPanels(){
+  [1,2,3].forEach(tid=>{
+    const t=TEAMS[tid];
+    const dr=state.draftLog.filter(e=>e.team===tid);
+    const c={QB:0,RB:0,WR:0,TE:0,PK:0,DL:0,LB:0,DB:0};
+    dr.forEach(e=>{
+      if(e.pos==='QB')c.QB++;else if(e.pos==='RB')c.RB++;else if(e.pos==='WR')c.WR++;
+      else if(e.pos==='TE')c.TE++;else if(e.pos==='PK')c.PK++;
+      else if(isDL(e.pos))c.DL++;else if(isLB(e.pos))c.LB++;else if(isDB(e.pos))c.DB++;
+    });
+    const fx=Math.max(0,c.RB-2)+Math.max(0,c.WR-3)+Math.max(0,c.TE-1);
+    const dfx=Math.max(0,c.DL-2)+Math.max(0,c.LB-2)+Math.max(0,c.DB-2);
+    const needs=[
+      {label:'QB',req:1,filled:Math.min(c.QB,1)},{label:'RB',req:2,filled:Math.min(c.RB,2)},
+      {label:'WR',req:3,filled:Math.min(c.WR,3)},{label:'TE',req:1,filled:Math.min(c.TE,1)},
+      {label:'FLEX',req:1,filled:Math.min(fx,1)},{label:'K',req:1,filled:Math.min(c.PK,1)},
+      {label:'DL',req:2,filled:Math.min(c.DL,2)},{label:'LB',req:2,filled:Math.min(c.LB,2)},
+      {label:'DB',req:2,filled:Math.min(c.DB,2)},{label:'D-FLEX',req:2,filled:Math.min(dfx,2)},
+    ].map(n=>({...n,met:n.filled>=n.req}));
+
+    const used=new Set();
+    const pick=fn=>{const f=dr.find(e=>!used.has(e.pickNum)&&fn(e));if(f)used.add(f.pickNum);return f||null;};
+    const slots=[
+      {s:'QB',p:pick(e=>e.pos==='QB')},{s:'RB',p:pick(e=>e.pos==='RB')},{s:'RB',p:pick(e=>e.pos==='RB')},
+      {s:'WR',p:pick(e=>e.pos==='WR')},{s:'WR',p:pick(e=>e.pos==='WR')},{s:'WR',p:pick(e=>e.pos==='WR')},
+      {s:'TE',p:pick(e=>e.pos==='TE')},{s:'FLEX',p:pick(e=>isFlex(e.pos))},{s:'K',p:pick(e=>e.pos==='PK')},
+      {s:'DL',p:pick(e=>isDL(e.pos))},{s:'DL',p:pick(e=>isDL(e.pos))},
+      {s:'LB',p:pick(e=>isLB(e.pos))},{s:'LB',p:pick(e=>isLB(e.pos))},
+      {s:'DB',p:pick(e=>isDB(e.pos))},{s:'DB',p:pick(e=>isDB(e.pos))},
+      {s:'D-FLEX',p:pick(e=>isDEF(e.pos))},{s:'D-FLEX',p:pick(e=>isDEF(e.pos))},
+    ];
+    const bench=dr.filter(e=>!used.has(e.pickNum));
+    const rem=state.pickOwners?state.pickOwners.filter((o,i)=>o===tid&&!pickIsUsed(i)).length:0;
+
+    document.getElementById('panel-team'+tid).innerHTML=`
+      <div class="team-header" style="background:linear-gradient(135deg,var(--surface) 0%,rgba(${t.rgb},.08) 100%);border:1px solid var(--border)">
+        <div class="team-icon">${t.emoji}</div>
+        <div class="team-info">
+          <h2 style="color:${t.cssVar}">${t.name}</h2>
+          <div class="team-meta">${dr.length} / ${PPT} drafted · ${rem} picks remaining</div>
+          <div class="needs-bar">${needs.map(n=>`<div class="need-chip${n.met?' filled':''}" style="background:rgba(${t.rgb},.1);border:1px solid rgba(${t.rgb},.3)"><span class="need-dot" style="background:${n.met?t.hex:'var(--muted)'}"></span>${n.req>1?n.req+'× ':''}${n.label}${n.met?' ✓':''}</div>`).join('')}</div>
+        </div>
+      </div>
+      <div class="section-title" style="margin-bottom:8px">Starters</div>
+      <div class="roster-grid">${slots.map(({s,p})=>p
+        ?`<div class="roster-slot"><span class="slot-pos pos-badge pos-${p.pos}">${s}</span><div><div class="slot-player">${p.name}</div><div class="slot-meta">${p.pos}·${p.nfl||'—'}</div></div><span class="tier-label tier-${p.tier}" style="margin-left:auto">${TIER_LABELS[p.tier]}</span></div>`
+        :`<div class="roster-slot empty"><span class="slot-pos" style="color:var(--muted)">${s}</span><span style="color:var(--muted);font-size:11px">Empty</span></div>`
+      ).join('')}</div>
+      ${bench.length?`<div class="section-title" style="margin-top:16px;margin-bottom:8px">Bench (${bench.length})</div>
+      <div class="roster-grid">${bench.map(p=>`<div class="roster-slot"><span class="slot-pos pos-badge pos-${p.pos}">${p.pos}</span><div><div class="slot-player">${p.name}</div><div class="slot-meta">${p.nfl||'—'}</div></div><span class="tier-label tier-${p.tier}" style="margin-left:auto">${TIER_LABELS[p.tier]}</span></div>`).join('')}</div>`:''}
+    `;
+  });
+}
+
+// ── PICKS & TRADES PAGE ───────────────────────────────────
+function renderPicksPage(){
+  const statusEl=document.getElementById('orderStatus');
+  const grid=document.getElementById('fullOrderGrid');
+  if(!state.pickOwners){
+    statusEl.textContent='— not set';
+    grid.innerHTML='<div style="padding:14px;color:var(--muted);font-size:13px">Set draft order via ⚙ Order.</div>';
+  } else {
+    statusEl.textContent=`Rd 1: ${state.draftOrder.map(tid=>TEAMS[tid].name).join(' → ')} · snake`;
+    let html='';
+    for(let r=0;r<PPT;r++){
+      const base=r*NT;
+      html+=`<div class="order-round"><div class="order-round-label">Round ${r+1}${r%2===1?' ↩':''}</div><div class="order-picks">`;
+      for(let p=0;p<NT;p++){
+        const idx=base+p,t=TEAMS[state.pickOwners[idx]];
+        const done=pickIsUsed(idx);
+        const le=state.draftLog.find(e=>e.overallIdx===idx);
+        const traded=state.tradeLog.some(tr=>[...tr.aGave,...tr.bGave].includes(idx));
+        html+=`<div class="order-pick" style="opacity:${done?.38:1}">
+          <span class="order-pick-num" style="color:${t.hex}">${getPickLabel(idx)}</span>
+          <span class="snake-pip" style="background:rgba(${t.rgb},.15);color:${t.hex}">${t.emoji} ${t.name}</span>
+          ${traded?'<span class="pick-trade-tag">T</span>':''}
+          ${le?`<span style="font-size:10px;color:var(--muted);margin-left:3px;font-style:italic">${le.name}</span>`:''}
+        </div>`;
+      }
+      html+='</div></div>';
+    }
+    grid.innerHTML=html;
+  }
+  const tl=document.getElementById('tradeLogList');
+  if(!state.tradeLog.length){tl.innerHTML='<div class="empty-trades">No trades recorded yet.</div>';return;}
+  tl.innerHTML='<div class="trade-log-list">'+state.tradeLog.map((tr,i)=>`
+    <div class="trade-entry">
+      <div class="trade-entry-title">TRADE #${i+1}</div>
+      <div class="trade-entry-detail">${tr.desc}</div>
+      <div style="margin-top:5px;display:flex;gap:6px;flex-wrap:wrap">
+        ${[...tr.aGave,...tr.bGave].map(idx=>`<span class="pick-trade-tag" style="background:rgba(245,200,66,.15);color:var(--accent1)">${getPickLabel(idx)}</span>`).join('')}
+      </div>
+    </div>`).join('')+'</div>';
+}
+
+// ── SETTINGS ──────────────────────────────────────────────
+function openSettings(){
+  if(state.draftOrder){
+    document.getElementById('slot1').value=state.draftOrder[0];
+    document.getElementById('slot2').value=state.draftOrder[1];
+    document.getElementById('slot3').value=state.draftOrder[2];
+  }
+  updateSnakePreview();
+  document.getElementById('settingsModal').classList.add('open');
+}
+
+function updateSnakePreview(){
+  const s1=parseInt(document.getElementById('slot1').value);
+  const s2=parseInt(document.getElementById('slot2').value);
+  const s3=parseInt(document.getElementById('slot3').value);
+  const prev=document.getElementById('snakePreview');
+  const warn=document.getElementById('settingsWarning');
+  const btn=document.getElementById('confirmOrderBtn');
+  if(!s1||!s2||!s3){prev.innerHTML='<span style="color:var(--muted)">Select all 3 owners to preview.</span>';warn.style.display='none';btn.disabled=true;return;}
+  if(new Set([s1,s2,s3]).size<3){warn.style.display='block';warn.textContent='Each owner must appear exactly once.';btn.disabled=true;return;}
+  warn.style.display='none';btn.disabled=false;
+  const order=[s1,s2,s3];
+  let html='';
+  for(let r=0;r<4;r++){
+    const ro=r%2===1?[...order].reverse():order;
+    html+=`<div class="snake-row"><span class="snake-row-label">Rd ${r+1}${r%2===1?' ↩':''}</span>
+      ${ro.map(tid=>{const t=TEAMS[tid];return`<span class="snake-pip" style="background:rgba(${t.rgb},.15);color:${t.hex}">${t.emoji} ${t.name}</span>`;}).join('<span style="color:var(--muted);font-size:10px">→</span>')}
+    </div>`;
+  }
+  html+=`<div style="color:var(--muted);font-size:10px;margin-top:5px">… continues for all ${PPT} rounds</div>`;
+  prev.innerHTML=html;
+}
+
+function confirmOrder(){
+  const s1=parseInt(document.getElementById('slot1').value);
+  const s2=parseInt(document.getElementById('slot2').value);
+  const s3=parseInt(document.getElementById('slot3').value);
+  if(!s1||!s2||!s3||new Set([s1,s2,s3]).size<3)return;
+  if(state.draftLog.length>0&&!confirm('Draft has started. Future picks will be re-assigned to this new order. Continue?'))return;
+  state.draftOrder=[s1,s2,s3];
+  state.pickOwners=buildPickOwners(state.draftOrder);
+  // Re-apply trades
+  state.tradeLog.forEach(tr=>{
+    tr.aGave.forEach(idx=>{if(idx<TOTAL)state.pickOwners[idx]=tr.toB;});
+    tr.bGave.forEach(idx=>{if(idx<TOTAL)state.pickOwners[idx]=tr.toA;});
+  });
+  closeModal('settingsModal');
+  renderAll();
+  showToast(`✅ Order locked: ${[s1,s2,s3].map(t=>TEAMS[t].name).join(' → ')} (snake · ${PPT} rounds)`);
+}
+
+// ── DRAFT MODAL ───────────────────────────────────────────
+function openDraftModal(pid){
+  if(!state.draftOrder){showToast('⚠️ Set draft order first');openSettings();return;}
+  state.pendingPid=pid;state.selectedTeam=null;
+  const p=state.players[pid];
+  document.getElementById('modalPlayerName').textContent=p.name;
+  document.getElementById('modalPlayerMeta').textContent=`${p.pos} · ${p.nfl||'FA'} · ${TIER_LABELS[p.tier]}`;
+  document.getElementById('confirmDraftBtn').disabled=true;
+  document.querySelectorAll('.team-select-btn').forEach(b=>b.classList.remove('sel'));
+  const oc=curOwner();if(oc)selectTeam(oc);
+  document.getElementById('draftModal').classList.add('open');
+}
+function selectTeam(tid){
+  state.selectedTeam=tid;
+  document.querySelectorAll('.team-select-btn').forEach(b=>b.classList.remove('sel'));
+  document.querySelectorAll('.team-select-btn')[tid-1].classList.add('sel');
+  document.getElementById('confirmDraftBtn').disabled=false;
+}
+function confirmDraft(){
+  const pid=state.pendingPid,tid=state.selectedTeam;
+  if(pid===null||!tid)return;
+  const p=state.players[pid];
+  const oi=curIdx(),pn=oi+1;
+  p.drafted=true;p.draftedBy=tid;p.pickNum=pn;
+  state.draftLog.push({pickNum:pn,overallIdx:oi,team:tid,name:p.name,pos:p.pos,nfl:p.nfl,id:pid,tier:p.tier});
+  closeModal('draftModal');renderAll();
+  showToast(`✅ Pick #${pn}: ${p.name} → ${TEAMS[tid].emoji} ${TEAMS[tid].name}`);
+}
+
+// ── TRADE MODAL ───────────────────────────────────────────
+function openTradeModal(){
+  if(!state.draftOrder){showToast('⚠️ Set draft order first');openSettings();return;}
+  state.tradeSelA=new Set();state.tradeSelB=new Set();
+  ['A','B'].forEach(s=>{
+    document.getElementById('tradeOwner'+s).value='';
+    document.getElementById('tradePicks'+s).innerHTML='<div style="color:var(--muted);font-size:11px;padding:3px">Select owner to see picks</div>';
+  });
+  document.getElementById('tradeSummary').textContent='No picks selected yet.';
+  document.getElementById('tradeWarning').style.display='none';
+  document.getElementById('tradeModal').classList.add('open');
+}
+function renderTradePicks(side){
+  const tid=parseInt(document.getElementById('tradeOwner'+side).value);
+  const listEl=document.getElementById('tradePicks'+side);
+  const sel=side==='A'?state.tradeSelA:state.tradeSelB;
+  sel.clear();
+  if(!tid){listEl.innerHTML='<div style="color:var(--muted);font-size:11px;padding:3px">Select owner to see picks</div>';updateTradeSummary();return;}
+  const t=TEAMS[tid];
+  const picks=state.pickOwners.map((o,i)=>({i,o,label:getPickLabel(i)})).filter(p=>p.o===tid&&!pickIsUsed(p.i));
+  if(!picks.length){listEl.innerHTML='<div style="color:var(--muted);font-size:11px;padding:3px">No remaining picks</div>';updateTradeSummary();return;}
+  listEl.innerHTML=picks.map(p=>`<div class="trade-pick-item" id="tp-${side}-${p.i}" onclick="togglePick('${side}',${p.i})">
+    <span style="color:${t.hex};font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px">${p.label}</span>
+    <span style="color:var(--muted);font-size:10px">${t.emoji} ${t.name}</span>
+  </div>`).join('');
+  updateTradeSummary();
+}
+function togglePick(side,idx){
+  const sel=side==='A'?state.tradeSelA:state.tradeSelB;
+  const el=document.getElementById(`tp-${side}-${idx}`);
+  if(sel.has(idx)){sel.delete(idx);el.classList.remove('selected');}
+  else{sel.add(idx);el.classList.add('selected');}
+  updateTradeSummary();
+}
+function updateTradeSummary(){
+  const tidA=parseInt(document.getElementById('tradeOwnerA').value);
+  const tidB=parseInt(document.getElementById('tradeOwnerB').value);
+  const el=document.getElementById('tradeSummary');
+  if(!tidA||!tidB||tidA===tidB){el.textContent=tidA===tidB?'Owners must be different.':'Select two different owners.';return;}
+  const tA=TEAMS[tidA],tB=TEAMS[tidB];
+  const al=[...state.tradeSelA].map(i=>getPickLabel(i)).join(', ')||'nothing';
+  const bl=[...state.tradeSelB].map(i=>getPickLabel(i)).join(', ')||'nothing';
+  el.innerHTML=`<strong style="color:${tA.hex}">${tA.emoji} ${tA.name}</strong> sends <strong>${al}</strong> to <strong style="color:${tB.hex}">${tB.emoji} ${tB.name}</strong><br>
+    <strong style="color:${tB.hex}">${tB.emoji} ${tB.name}</strong> sends <strong>${bl}</strong> to <strong style="color:${tA.hex}">${tA.emoji} ${tA.name}</strong>`;
+}
+function confirmTrade(){
+  const tidA=parseInt(document.getElementById('tradeOwnerA').value);
+  const tidB=parseInt(document.getElementById('tradeOwnerB').value);
+  const warn=document.getElementById('tradeWarning');
+  if(!tidA||!tidB){warn.style.display='block';warn.textContent='Select both owners.';return;}
+  if(tidA===tidB){warn.style.display='block';warn.textContent='Owners must be different.';return;}
+  if(!state.tradeSelA.size&&!state.tradeSelB.size){warn.style.display='block';warn.textContent='Select at least one pick.';return;}
+  const tA=TEAMS[tidA],tB=TEAMS[tidB];
+  const ai=[...state.tradeSelA],bi=[...state.tradeSelB];
+  ai.forEach(i=>state.pickOwners[i]=tidB);
+  bi.forEach(i=>state.pickOwners[i]=tidA);
+  const al=ai.map(i=>getPickLabel(i)).join(', ')||'nothing';
+  const bl=bi.map(i=>getPickLabel(i)).join(', ')||'nothing';
+  state.tradeLog.push({
+    desc:`${tA.emoji} ${tA.name} sends ${al} → ${tB.emoji} ${tB.name}; ${tB.emoji} ${tB.name} sends ${bl} → ${tA.emoji} ${tA.name}`,
+    toA:tidA,toB:tidB,aGave:ai,bGave:bi,
+  });
+  closeModal('tradeModal');renderAll();
+  showToast(`⇄ Trade #${state.tradeLog.length} recorded`);
+}
+
+// ── UNDO ──────────────────────────────────────────────────
+function undoPick(){
+  if(!state.draftLog.length){showToast('⚠️ No picks to undo');return;}
+  const last=state.draftLog.pop();
+  const p=state.players[last.id];
+  p.drafted=false;p.draftedBy=null;p.pickNum=null;
+  renderAll();showToast(`↩ Undid: ${last.name}`);
+}
+
+// ── HELPERS ───────────────────────────────────────────────
+function showPanel(name,btn){
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('panel-'+name).classList.add('active');
+  btn.classList.add('active');
+}
+function setPosFilter(pos,btn){
+  state.posFilter=pos;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderPlayerTable();
+}
+function closeModal(id){
+  document.getElementById(id).classList.remove('open');
+  if(id==='draftModal'){state.pendingPid=null;state.selectedTeam=null;}
+}
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3000);
+}
+['draftModal','settingsModal','tradeModal'].forEach(id=>{
+  document.getElementById(id).addEventListener('click',function(e){if(e.target===this)closeModal(id);});
+});
+
+renderAll();
+</script>
+
+</body>
+</html>
